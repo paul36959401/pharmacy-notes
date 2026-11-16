@@ -73,7 +73,7 @@ try {
         for (const scheme of ['light', 'dark']) {
             ({context, page} = await open(vp, mobile));
             await page.emulateMedia({colorScheme: scheme});
-            await page.evaluate(() => {try {localStorage.setItem('nd-allow-write', '1');} catch (_) {}});
+            await page.evaluate(s => {try {localStorage.setItem('nd-theme', s);} catch (_) {} noteAppearance.apply(s);}, scheme);
             await page.waitForTimeout(2500);
             await page.screenshot({path: `${out}/${name}-${scheme}-list.png`});
             await page.evaluate(() => openEditModal('n1'));

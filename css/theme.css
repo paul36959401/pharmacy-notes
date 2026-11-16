@@ -1,0 +1,115 @@
+/* Appearance layer for the GitHub Pages version: dark mode and phone layout.
+ * Loaded after app.css. Kept separate so the original note styling stays untouched. */
+
+/* ---------- Dark mode ----------
+ * The original stylesheet hard-codes ~260 colours, and notes carry their own text and
+ * highlight colours. Inverting the page (and turning hues back with hue-rotate) gives a
+ * dark page where every colour keeps its meaning: red stays red, yellow highlight stays
+ * yellow, just adjusted for a dark background. Pictures are inverted back so they look
+ * exactly as they are. */
+html[data-theme="dark"] {
+  filter: invert(1) hue-rotate(180deg);
+  background: #fff;
+  color-scheme: light;   /* the page is drawn light, then inverted */
+}
+html[data-theme="dark"] body,
+html[data-theme="dark"] .site-gate {
+  background-color: #e3e0db;   /* becomes a soft warm near-black */
+}
+html[data-theme="dark"] :is(img, video, canvas, picture, #studio-scene, .keep-original-colors) {
+  filter: invert(1) hue-rotate(180deg);
+}
+/* Images inside a re-inverted area must not flip twice. */
+html[data-theme="dark"] :is(#studio-scene, .keep-original-colors) :is(img, video, canvas) {
+  filter: none;
+}
+/* Shadows would turn into glows after inverting. */
+html[data-theme="dark"] *:not(img) {
+  box-shadow: none !important;
+}
+html[data-theme="dark"] ::selection {
+  background: #93c5fd;
+}
+
+/* ---------- Appearance setting (in 設定、匯入與儲存空間) ---------- */
+.site-appearance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+  font-size: .92rem;
+}
+.site-appearance select {
+  padding: 6px 10px;
+  border: 1px solid #d6d3d1;
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+}
+
+/* ---------- Touch screens (phones, tablets) ---------- */
+@media (hover: none), (max-width: 650px) {
+  /* Keyboard shortcut help is for physical keyboards only. */
+  .shortcut-hints {
+    display: none;
+  }
+}
+
+/* ---------- Phones ---------- */
+@media (max-width: 650px) {
+  body {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .site-readonly {
+    margin: -20px -12px 12px;
+    padding: 8px 12px;
+    font-size: .82rem;
+    gap: 6px 10px;
+  }
+  .site-readonly button {
+    padding: 4px 12px;
+  }
+  /* The left/right page arrows sat on top of the note cards; the page bar at the
+     bottom already turns pages. */
+  .note-side-turn {
+    display: none !important;
+  }
+  /* Bottom bar tucks away while scrolling down, comes back when scrolling up. */
+  #note-reader-dock {
+    transition: transform .22s ease, opacity .22s ease;
+  }
+  body.note-dock-tucked #note-reader-dock {
+    transform: translateY(calc(100% + 24px));
+    opacity: 0;
+    pointer-events: none;
+  }
+  /* Toolbar: two rows of four, each icon with its name underneath (no mouse hover on phones). */
+  body .note-toolbar {
+    width: 100%;
+    box-sizing: border-box;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  body .note-toolbar-button[data-tool-label] {
+    width: 100%;
+    height: 54px;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .note-toolbar-button[data-tool-label]::after {
+    content: attr(data-tool-label);
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 0;
+    white-space: nowrap;
+    color: currentColor;
+    opacity: .85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #note-reader-dock {
+    transition: none;
+  }
+}

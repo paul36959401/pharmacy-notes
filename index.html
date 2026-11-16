@@ -5,9 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>藥學筆記雲端</title>
-<link rel="stylesheet" href="css/app.css?v=2026-11-16-pages-v8">
-<link rel="stylesheet" href="css/icons.css?v=2026-11-16-pages-v8">
-<link rel="stylesheet" href="css/site.css?v=2026-11-16-pages-v8">
+<link rel="stylesheet" href="css/app.css?v=2026-11-16-pages-v9">
+<link rel="stylesheet" href="css/icons.css?v=2026-11-16-pages-v9">
+<link rel="stylesheet" href="css/site.css?v=2026-11-16-pages-v9">
+<link rel="stylesheet" href="css/theme.css?v=2026-11-16-pages-v9">
+<script>/* apply the saved light/dark choice before the page draws */try{var c=localStorage.getItem('nd-theme')||'light';document.documentElement.dataset.theme=(c==='dark'||(c==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light';}catch(e){}</script>
 </head>
 <body>
 <div id="site-gate" class="site-gate" role="dialog" aria-modal="true" aria-labelledby="site-gate-title">
@@ -19,7 +21,7 @@
   </div>
 </div>
 <div id="site-readonly" class="site-readonly" role="status" hidden>
-  <span><b>唯讀檢查模式</b>：可以瀏覽、搜尋，修改不會存到雲端。確認筆記和圖片都正確後再開啟編輯。</span>
+  <span title="確認筆記和圖片都正確後再開啟編輯。"><b>唯讀檢查模式</b>：修改不會存到雲端</span>
   <button id="site-readonly-enable" type="button">開啟編輯</button>
 </div>
 
@@ -370,9 +372,9 @@
     </div>
 </div>
 
-<script src="js/config.js?v=2026-11-16-pages-v8"></script>
-<script src="js/auth.js?v=2026-11-16-pages-v8"></script>
-<script src="js/drive-server.js?v=2026-11-16-pages-v8"></script>
-<script src="js/boot.js?v=2026-11-16-pages-v8"></script>
+<script src="js/config.js?v=2026-11-16-pages-v9"></script>
+<script src="js/auth.js?v=2026-11-16-pages-v9"></script>
+<script src="js/drive-server.js?v=2026-11-16-pages-v9"></script>
+<script src="js/boot.js?v=2026-11-16-pages-v9"></script>
 </body>
 </html>

@@ -81,6 +81,7 @@
         noteFloatingKeyboard.initialize();
         noteGalleryConverter.initialize();
         noteLinkedImages.initialize();
+        noteAppearance.initialize();
         noteImageSearch.start();
         await notePersistence.start();
     };

@@ -1,6 +1,6 @@
 /* Google sign-in (Google Identity Services, token model).
- * The access token lives about 1 hour. It is kept in sessionStorage so a reload
- * inside that hour does not ask again. When it expires, a silent refresh is tried;
+ * The access token lives about 1 hour. It is kept in localStorage so reopening the
+ * site inside that hour does not ask again (it expires by itself). When it expires, a silent refresh is tried;
  * if the browser blocks that pop-up, a banner asks for one click to reconnect.
  */
 const noteAuth = (() => {
@@ -10,7 +10,7 @@ const noteAuth = (() => {
     let client = null, token = null, expiresAt = 0, waiting = null, ready = null;
 
     try {
-        const saved = JSON.parse(sessionStorage.getItem(KEY) || 'null');
+        const saved = JSON.parse(localStorage.getItem(KEY) || sessionStorage.getItem(KEY) || 'null');
         if (saved && saved.expiresAt > Date.now() + 60000) {token = saved.token; expiresAt = saved.expiresAt;}
     } catch (_) {}
 
@@ -30,7 +30,7 @@ const noteAuth = (() => {
     function store(response) {
         token = response.access_token;
         expiresAt = Date.now() + (Number(response.expires_in || 3600) - 120) * 1000;
-        try {sessionStorage.setItem(KEY, JSON.stringify({token, expiresAt}));} catch (_) {}
+        try {localStorage.setItem(KEY, JSON.stringify({token, expiresAt}));} catch (_) {}
     }
     function banner(show) {
         let el = document.getElementById('auth-reconnect');
@@ -78,7 +78,7 @@ const noteAuth = (() => {
         }
         return waiting.promise;
     }
-    function invalidate() {token = null; expiresAt = 0; try {sessionStorage.removeItem(KEY);} catch (_) {}}
+    function invalidate() {token = null; expiresAt = 0; try {localStorage.removeItem(KEY); sessionStorage.removeItem(KEY);} catch (_) {}}
     function signOut() {
         if (token && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(token, () => {});
         invalidate(); localStorage.removeItem('nd-login-hint');
