@@ -3,7 +3,9 @@
  */
 window.NOTE_SITE_CONFIG = {
     clientId: '763409300868-6vuidharbkm839vkag59kft4h1a02c6m.apps.googleusercontent.com',
-    release: '2026-11-16-pages-v2',
+    // 阿摩圖片代理的網址（Apps Script 網頁應用程式，結尾是 /exec）。程式碼在 tools/yamol-image-proxy.gs。
+    imageProxyUrl: '',
+    release: '2026-11-16-pages-v3',
     books: [
         {id: 'pharmacology', title: '藥理藥化'},
         {id: 'biopharmaceutics', title: '生物藥劑'},

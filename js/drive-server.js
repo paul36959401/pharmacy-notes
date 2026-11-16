@@ -94,6 +94,19 @@ const noteDriveServer = (() => {
         } while (pageToken);
         return files;
     }
+    /* First file (in the requested order) that passes a test, reading only as many pages as needed. */
+    async function firstMatch(query, fields, orderBy, test, pageSize = 50) {
+        let pageToken = '';
+        do {
+            const params = new URLSearchParams({q: query, fields: 'nextPageToken,files(' + fields + ')', pageSize: String(pageSize), spaces: 'drive', orderBy});
+            if (pageToken) params.set('pageToken', pageToken);
+            const page = await api('/files?' + params);
+            const hit = (page.files || []).find(test);
+            if (hit) return hit;
+            pageToken = page.nextPageToken || '';
+        } while (pageToken);
+        return null;
+    }
     async function mediaBlob(fileId) {return (await ok(await http(API + '/files/' + encodeURIComponent(fileId) + '?alt=media'))).blob();}
     async function mediaBytes(fileId) {return new Uint8Array(await (await mediaBlob(fileId)).arrayBuffer());}
     async function mediaText(fileId) {return new TextDecoder('utf-8').decode(await mediaBytes(fileId));}
@@ -310,10 +323,10 @@ const noteDriveServer = (() => {
                 }
             } catch (_) {}
         }
+        // Only the newest head matters: the old site kept one file per save (thousands), so stop at the first match.
         const pattern = headName(book);
-        const found = (await list("name contains '" + q(book.id) + "' and mimeType='application/json' and trashed=false", 'id,name,createdTime', 'createdTime desc', 200))
-            .filter(f => pattern.test(f.name));
-        if (found[0]) candidates.push(found[0]);
+        const newest = await firstMatch("name contains '" + q(book.id) + "' and mimeType='application/json' and trashed=false", 'id,name,createdTime', 'createdTime desc', f => pattern.test(f.name));
+        if (newest) candidates.push(newest);
         if (!candidates.length) {headCache.set(book.id, {head: {revision: null, pages: [], count: 0, preload: []}, fileId: null}); return headCache.get(book.id).head;}
         candidates.sort((a, b) => String(b.createdTime).localeCompare(String(a.createdTime)));
         const fileId = candidates[0].id, cached = headCache.get(book.id);
@@ -495,6 +508,22 @@ const noteDriveServer = (() => {
         }
     }
 
+    /* ---------- Yamol images: fetched by a tiny Apps Script proxy (tools/yamol-image-proxy.gs),
+       because yamol.tw does not let other websites read its image pixels. ---------- */
+    async function externalImage(url) {
+        const proxy = window.NOTE_SITE_CONFIG?.imageProxyUrl;
+        if (!proxy) throw fail('阿摩圖片代理尚未設定；圖片連結與筆記都會保留。截圖貼上或「複製圖片」再貼上仍可使用。', 'EXTERNAL_IMAGE_PROXY', false);
+        let response;
+        try {response = await fetch(proxy + '?url=' + encodeURIComponent(url), {credentials: 'omit', redirect: 'follow'});}
+        catch (_) {throw fail('無法連到阿摩圖片代理，請檢查網路；圖片連結仍保留。', 'EXTERNAL_IMAGE_PROXY');}
+        if (!response.ok) throw fail('阿摩圖片代理回覆 ' + response.status + '；圖片連結仍保留。', 'EXTERNAL_IMAGE_PROXY');
+        let value;
+        try {value = await response.json();}
+        catch (_) {throw fail('阿摩圖片代理回覆格式不正確（請確認部署的存取權是「所有人」）。', 'EXTERNAL_IMAGE_PROXY', false);}
+        if (!value?.success) throw fail(value?.error || '阿摩圖片讀取失敗。', value?.code || 'EXTERNAL_IMAGE_HTTP', value?.retryable !== false);
+        return value;
+    }
+
     /* ---------- entry point ---------- */
     function bookOf(id) {const book = books.find(b => b.id === id); if (!book) throw fail('找不到這個科目。', 'BOOK', false); return book;}
     async function call(packet) {
@@ -514,7 +543,7 @@ const noteDriveServer = (() => {
                 case 'ocrIndex': return await ocrIndex(packet);
                 case 'ocrRecognize': return await ocrRecognize(packet);
                 case 'quota': return {success: true, ...await api('/about?fields=storageQuota,user(emailAddress,displayName)')};
-                case 'externalImage': throw fail('新版網站沒有伺服器，無法代為下載阿摩圖片；圖片連結與筆記都會保留。可以先把圖片存到電腦，再貼進筆記。', 'EXTERNAL_IMAGE_HOST', false);
+                case 'externalImage': return await externalImage(packet.url);
                 case 'legacyRead': throw fail('舊版雲端已全部搬移完成，新版網站不再讀取舊雲端。', 'LEGACY_REMOVED', false);
                 default: throw fail('不支援的動作。', 'REQUEST', false);
             }
