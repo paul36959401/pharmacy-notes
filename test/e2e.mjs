@@ -40,6 +40,7 @@ console.log('big image MB', (big.length * 3 / 4 / 1e6).toFixed(1));
 const backup = {notes: [
     {id: 'n1', title: '', text: '<p><b>Omeprazole</b>：弱鹼性的 <mark>Prodrug</mark></p><p><img src="' + inlineImg + '"></p>', categoryIds: ['c1'], starred: true, createdAt: '2025-01-01T00:00:00Z'},
     {id: 'n2', title: '舊格式圖片區', text: '<p>這則筆記的圖片在獨立圖片區</p>', images: [gallery1, gallery2], categoryIds: [], createdAt: '2025-01-02T00:00:00Z'},
+    {id: 'n4', title: '連結圖片', text: '<p>阿摩的圖</p><p><img src="https://img.yamol.tw/file/test.jpg#s-591,250"></p>', categoryIds: [], createdAt: '2025-01-04T00:00:00Z'},
     {id: 'n3', title: '大圖', text: '<p>超過 5 MB 的圖</p><p><img src="' + big + '"></p>', categoryIds: [], createdAt: '2025-01-03T00:00:00Z'},
     ...Array.from({length: 12}, (_, i) => ({id: 'm' + i, title: '', text: '<p>筆記 ' + i + '</p>', categoryIds: [], createdAt: '2025-02-01T00:00:00Z'})),
     {id: '__NOTE_CATEGORIES__', _type: 'system-categories', records: [{id: 'c1', name: '胃藥', abbr: '胃藥', color: '#f59e0b'}]}
@@ -87,7 +88,7 @@ try {
     const heads = headFiles();
     check(heads.length >= 1, 'a version (head) file was written: ' + heads.length);
     const head = JSON.parse(heads.at(-1).content.toString());
-    check(head.count === 17, 'head counts 17 records (15 notes + categories + edit history): ' + head.count);
+    check(head.count === 18, 'head counts 18 records (16 notes + categories + edit history): ' + head.count);
     const pointer = [...drive.files.values()].find(f => f.name === 'nd-pointer-pharmacology.json');
     check(pointer && JSON.parse(pointer.content).revision === head.revision, 'pointer file points at newest version');
     const assets = [...drive.files.values()].filter(f => f.name.startsWith('nd-asset-'));
@@ -167,6 +168,15 @@ try {
     check(srcs.filter(s => s.startsWith('data:image/png')).length >= 1 && proxied.some(p => p.url.includes('blocked')), 'when the full image is blocked, the thumbnail is used instead');
     srcs = await dragInto('<img src="https://i.yamol.tw/question/abc.png">', 'https://i.yamol.tw/question/abc.png');
     check(proxied.some(p => p.url === 'https://i.yamol.tw/question/abc.png'), 'Yamol image drag goes through the proxy');
+    // Linked (hot-linked) images are downloaded and stored with the note.
+    check(await page.evaluate(() => noteLinkedImages.count()) === 1, 'linked image tool finds the 1 linked image');
+    await page.click('#drive-tools summary');
+    await page.click('#drive-linked-images');
+    await page.waitForFunction(() => /完成：|不符|請先/.test(document.getElementById('drive-message')?.textContent || ''), null, {timeout: 60000});
+    console.log('linked message:', await page.textContent('#drive-message'));
+    const n4 = await page.evaluate(() => notesData.find(n => n.id === 'n4').text);
+    check(!/https:\/\/img\.yamol/.test(n4) && /<img/.test(n4) && await page.evaluate(() => noteLinkedImages.count()) === 0, 'linked Yamol image now stored inside the note');
+    await page.waitForTimeout(2500);
     await context.close();
 
     // 4. Old-site compatibility: no pointer file, version found by search.

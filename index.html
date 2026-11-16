@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>藥學筆記雲端</title>
-<link rel="stylesheet" href="css/app.css?v=2026-11-16-pages-v4">
-<link rel="stylesheet" href="css/site.css?v=2026-11-16-pages-v4">
+<link rel="stylesheet" href="css/app.css?v=2026-11-16-pages-v5">
+<link rel="stylesheet" href="css/site.css?v=2026-11-16-pages-v5">
 </head>
 <body>
 <div id="site-gate" class="site-gate" role="dialog" aria-modal="true" aria-labelledby="site-gate-title">
@@ -24,7 +24,7 @@
 
 <header class="drive-workspace">
   <div class="drive-workspace-top"><label for="drive-book">藥學筆記</label><select id="drive-book" aria-label="切換科目"></select><a id="drive-open-book" hidden>開啟科目</a><span class="drive-private">私人 Google Drive</span></div>
-  <details id="drive-tools"><summary>設定、匯入與儲存空間</summary><p id="drive-message" role="status">正在連線…</p><div class="drive-actions"><button id="drive-migrate" type="button" disabled hidden>從此科目的舊雲端搬移</button><button id="drive-import" type="button" disabled>匯入完整備份 JSON</button><button id="drive-gallery-convert" type="button" hidden>把舊圖片區移進文字</button><button id="drive-convert" type="button" hidden>繼續搬移原圖</button><button id="drive-cancel" type="button" hidden>暫停搬移</button><button id="drive-quota" type="button">查看 Drive 空間</button></div><p id="drive-quota-text"></p><input id="drive-file" type="file" accept=".json,application/json" hidden></details>
+  <details id="drive-tools"><summary>設定、匯入與儲存空間</summary><p id="drive-message" role="status">正在連線…</p><div class="drive-actions"><button id="drive-migrate" type="button" disabled hidden>從此科目的舊雲端搬移</button><button id="drive-import" type="button" disabled>匯入完整備份 JSON</button><button id="drive-linked-images" type="button" hidden>把連結圖片存進雲端</button><button id="drive-gallery-convert" type="button" hidden>把舊圖片區移進文字</button><button id="drive-convert" type="button" hidden>繼續搬移原圖</button><button id="drive-cancel" type="button" hidden>暫停搬移</button><button id="drive-quota" type="button">查看 Drive 空間</button></div><p id="drive-quota-text"></p><input id="drive-file" type="file" accept=".json,application/json" hidden></details>
 </header>
 <div id="drive-start-error" role="alert" hidden style="max-width:900px;box-sizing:border-box;margin:12px auto;padding:14px;border:1px solid #dc2626;border-radius:12px;background:#fff7f7;color:#991b1b"><p id="drive-start-error-text"></p><p>請複製此錯誤回報；既有雲端資料未被清除。</p><button id="drive-start-reload" type="button">重新載入</button></div>
 <div class="container">
@@ -369,9 +369,9 @@
     </div>
 </div>
 
-<script src="js/config.js?v=2026-11-16-pages-v4"></script>
-<script src="js/auth.js?v=2026-11-16-pages-v4"></script>
-<script src="js/drive-server.js?v=2026-11-16-pages-v4"></script>
-<script src="js/boot.js?v=2026-11-16-pages-v4"></script>
+<script src="js/config.js?v=2026-11-16-pages-v5"></script>
+<script src="js/auth.js?v=2026-11-16-pages-v5"></script>
+<script src="js/drive-server.js?v=2026-11-16-pages-v5"></script>
+<script src="js/boot.js?v=2026-11-16-pages-v5"></script>
 </body>
 </html>

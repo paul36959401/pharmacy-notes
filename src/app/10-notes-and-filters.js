@@ -80,6 +80,7 @@
         noteInstantEditor.initialize();
         noteFloatingKeyboard.initialize();
         noteGalleryConverter.initialize();
+        noteLinkedImages.initialize();
         noteImageSearch.start();
         await notePersistence.start();
     };
