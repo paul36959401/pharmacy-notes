@@ -3,7 +3,7 @@
  */
 window.NOTE_SITE_CONFIG = {
     clientId: '763409300868-6vuidharbkm839vkag59kft4h1a02c6m.apps.googleusercontent.com',
-    release: '2026-11-16-pages-v1',
+    release: '2026-11-16-pages-v2',
     books: [
         {id: 'pharmacology', title: '藥理藥化'},
         {id: 'biopharmaceutics', title: '生物藥劑'},

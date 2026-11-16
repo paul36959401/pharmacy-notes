@@ -79,6 +79,7 @@
         initializeDriveWorkspace();
         noteInstantEditor.initialize();
         noteFloatingKeyboard.initialize();
+        noteGalleryConverter.initialize();
         noteImageSearch.start();
         await notePersistence.start();
     };

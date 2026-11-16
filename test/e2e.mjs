@@ -96,6 +96,19 @@ try {
     check(assets.some(f => f.content.length > 5 * 1024 * 1024), 'large image (>5 MB) uploaded via resumable upload');
     check(assets.every(f => drive.sha(f.content) === f.name.slice(9)), 'every stored image matches its SHA-256 name');
     console.log('drive request kinds:', drive.stats.byKind);
+
+    // 2b. Convert old gallery images into the note text.
+    await page.click('#drive-tools summary');
+    check(await page.isVisible('#drive-gallery-convert'), 'gallery convert button shows: ' + await page.textContent('#drive-gallery-convert'));
+    const totalsBefore = await page.evaluate(() => noteGalleryConverter.totals());
+    await page.click('#drive-gallery-convert');
+    await page.waitForFunction(() => /轉換完成|不符|尚未|請先/.test(document.getElementById('drive-message')?.textContent || ''), null, {timeout: 120000});
+    console.log('convert message:', await page.textContent('#drive-message'));
+    const totalsAfter = await page.evaluate(() => noteGalleryConverter.totals());
+    check(totalsAfter.gallery === 0 && totalsAfter.all === totalsBefore.all, 'gallery converted, image total unchanged: ' + JSON.stringify([totalsBefore, totalsAfter]));
+    const n2 = await page.evaluate(() => {const n = notesData.find(x => x.id === 'n2'); return {images: n.images, text: n.text};});
+    check((n2.text.match(/<img\b/g) || []).length === 2 && !n2.images?.length, 'note n2 now has its 2 images inside the text');
+    await page.waitForTimeout(3000);
     await context.close();
 
     // 3. Another "device" (fresh storage): everything must render from Drive.
