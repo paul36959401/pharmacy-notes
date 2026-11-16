@@ -16,7 +16,7 @@ const server = createServer(async (req, res) => {
     if (path.endsWith('/')) path += 'index.html';
     try {
         let body = await readFile(join(SITE, normalize(path)));
-        if (path === '/js/config.js') body = Buffer.from(body.toString().replace(/clientId: '[^']*'/, "clientId: 'test-client.apps.googleusercontent.com'"));
+        if (path === '/js/config.js') body = Buffer.from(body.toString().replace(/clientId: '[^']*'/, "clientId: 'test-client.apps.googleusercontent.com'").replace(/imageProxyUrl: '[^']*'/, "imageProxyUrl: 'https://script.google.com/macros/s/TEST/exec'"));
         res.writeHead(200, {'content-type': types[extname(path)] || 'application/octet-stream'}); res.end(body);
     } catch (_) {res.writeHead(404); res.end('not found');}
 }).listen(8765);
@@ -124,6 +124,49 @@ try {
     console.log('note images:', images);
     check(images.filter(i => i.w > 0).length >= 3, 'note images load on a fresh device (' + images.filter(i => i.w > 0).length + ')');
     await page.screenshot({path: '/tmp/nd-visit2.png', fullPage: false});
+    await context.close();
+
+    // 3b. Drag an image in from Google Images (full image via proxy; thumbnail fallback).
+    ({context, page} = await open('drag'));
+    const proxied = [];
+    const fullPng = Buffer.from((await png(640, 480, '#9333ea', 'full')).split(',')[1], 'base64');
+    await context.route('https://script.google.com/macros/s/TEST/exec', async route => {
+        const body = JSON.parse(route.request().postData() || '{}'); proxied.push(body);
+        if (!body.token) return route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify({success: false, error: 'no token'})});
+        if (body.url.includes('blocked')) return route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify({success: false, code: 'EXTERNAL_IMAGE_HTTP', error: '來源網站限制', retryable: false})});
+        route.fulfill({status: 200, contentType: 'application/json', headers: {'access-control-allow-origin': '*'}, body: JSON.stringify({success: true, mime: 'image/png', bytes: fullPng.length, key: drive.sha(fullPng), data: fullPng.toString('base64')})});
+    });
+    await context.route('https://example.com/**', route => route.abort());
+    await signInAndWait(page);
+    console.log('step: signed in');
+    await page.click('#site-readonly-enable');
+    await page.waitForFunction(() => window.noteDriveStartupComplete === true, null, {timeout: 60000});
+    console.log('step: edit enabled');
+    await page.waitForFunction(() => notesData.some(n => n.id === 'm1') && noteDriveCloud.state().loaded, null, {timeout: 60000});
+    const thumb = await png(120, 90, '#f97316', 't');
+    async function dragInto(html, uri) {
+        console.log('step: open editor');
+        await page.evaluate(() => openEditModal('m1'));
+        await page.waitForFunction(() => document.getElementById('noteModal').classList.contains('active') && editingNoteId === 'm1');
+        await page.evaluate(([html, uri]) => {
+            const editor = document.getElementById('modal-text'), dt = new DataTransfer();
+            dt.setData('text/html', html); dt.setData('text/uri-list', uri);
+            const rect = editor.getBoundingClientRect(), opts = {bubbles: true, cancelable: true, dataTransfer: dt, clientX: rect.left + 10, clientY: rect.bottom - 5};
+            editor.dispatchEvent(new DragEvent('dragenter', opts)); editor.dispatchEvent(new DragEvent('dragover', opts)); editor.dispatchEvent(new DragEvent('drop', opts));
+        }, [html, uri]);
+        await page.waitForTimeout(2500);
+        const srcs = await page.$$eval('#modal-text img', l => l.map(i => i.getAttribute('src').slice(0, 40)));
+        await page.evaluate(() => saveNote()); await page.waitForTimeout(500);
+        return srcs;
+    }
+    let srcs = await dragInto('<a href="/imgres?imgurl=https%3A%2F%2Fexample.com%2Ffull.png&imgrefurl=https%3A%2F%2Fexample.com%2F"><img src="' + thumb + '"></a>', 'https://www.google.com/imgres?imgurl=https%3A%2F%2Fexample.com%2Ffull.png');
+    console.log('drag srcs', srcs, 'proxy calls', proxied.map(p => p.url));
+    check(proxied.some(p => p.url === 'https://example.com/full.png' && p.token), 'Google Images drag asks the proxy for the full-size image with the sign-in token');
+    check(srcs.some(s => s.startsWith('data:image/png')), 'dragged Google image is stored inside the note');
+    srcs = await dragInto('<a href="/imgres?imgurl=https%3A%2F%2Fexample.com%2Fblocked.png"><img src="' + thumb + '"></a>', '');
+    check(srcs.filter(s => s.startsWith('data:image/png')).length >= 1 && proxied.some(p => p.url.includes('blocked')), 'when the full image is blocked, the thumbnail is used instead');
+    srcs = await dragInto('<img src="https://i.yamol.tw/question/abc.png">', 'https://i.yamol.tw/question/abc.png');
+    check(proxied.some(p => p.url === 'https://i.yamol.tw/question/abc.png'), 'Yamol image drag goes through the proxy');
     await context.close();
 
     // 4. Old-site compatibility: no pointer file, version found by search.

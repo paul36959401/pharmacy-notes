@@ -93,16 +93,31 @@
         return true;
     }
 
+    /* Google Images wraps results in links such as /imgres?imgurl=<full image>; prefer the full image
+       and keep the thumbnail as a fallback. */
+    function fullImageFromLink(href) {
+        try {
+            const u = new URL(href, 'https://www.google.com/');
+            const full = u.searchParams.get('imgurl') || u.searchParams.get('mediaurl');
+            return full && /^https?:\/\//i.test(full) ? full : '';
+        } catch (_) {return '';}
+    }
     function extractImageSources(dataTransfer) {
         const sources = [];
         const html = dataTransfer.getData('text/html');
+        const uri = dataTransfer.getData('text/uri-list');
+        const uriFull = (uri || '').split(/\r?\n/).map(fullImageFromLink).find(Boolean) || '';
         if (html) {
             const doc = new DOMParser().parseFromString(html, 'text/html');
-            doc.querySelectorAll('img').forEach(img => {const src=img.getAttribute('data-original')||img.getAttribute('data-src')||img.getAttribute('src');if(src)sources.push(src.startsWith('//')?'https:'+src:src);});
+            doc.querySelectorAll('img').forEach(img => {
+                let src=img.getAttribute('data-original')||img.getAttribute('data-src')||img.getAttribute('src');if(!src)return;
+                if(src.startsWith('//'))src='https:'+src;
+                const full=fullImageFromLink(img.closest('a')?.getAttribute('href')||'')||(doc.images.length===1?uriFull:'');
+                if(full&&full!==src){noteExternalImages.setFallback(full,src);sources.push(full);}else sources.push(src);
+            });
         }
         if(sources.length)return [...new Set(sources)];
-        const uri = dataTransfer.getData('text/uri-list');
-        if (uri) sources.push(...uri.split(/\r?\n/).filter(line => line && !line.startsWith('#')));
+        if (uri) sources.push(...uri.split(/\r?\n/).filter(line => line && !line.startsWith('#')).map(line => fullImageFromLink(line) || line));
         const plain = dataTransfer.getData('text/plain');
         if (plain && (/^data:image\//i.test(plain.trim()) || /^https?:\/\//i.test(plain.trim()))) sources.push(plain.trim());
         return [...new Set(sources)];

@@ -3395,16 +3395,31 @@ const noteClipboardContent=(()=>{
         return true;
     }
 
+    /* Google Images wraps results in links such as /imgres?imgurl=<full image>; prefer the full image
+       and keep the thumbnail as a fallback. */
+    function fullImageFromLink(href) {
+        try {
+            const u = new URL(href, 'https://www.google.com/');
+            const full = u.searchParams.get('imgurl') || u.searchParams.get('mediaurl');
+            return full && /^https?:\/\//i.test(full) ? full : '';
+        } catch (_) {return '';}
+    }
     function extractImageSources(dataTransfer) {
         const sources = [];
         const html = dataTransfer.getData('text/html');
+        const uri = dataTransfer.getData('text/uri-list');
+        const uriFull = (uri || '').split(/\r?\n/).map(fullImageFromLink).find(Boolean) || '';
         if (html) {
             const doc = new DOMParser().parseFromString(html, 'text/html');
-            doc.querySelectorAll('img').forEach(img => {const src=img.getAttribute('data-original')||img.getAttribute('data-src')||img.getAttribute('src');if(src)sources.push(src.startsWith('//')?'https:'+src:src);});
+            doc.querySelectorAll('img').forEach(img => {
+                let src=img.getAttribute('data-original')||img.getAttribute('data-src')||img.getAttribute('src');if(!src)return;
+                if(src.startsWith('//'))src='https:'+src;
+                const full=fullImageFromLink(img.closest('a')?.getAttribute('href')||'')||(doc.images.length===1?uriFull:'');
+                if(full&&full!==src){noteExternalImages.setFallback(full,src);sources.push(full);}else sources.push(src);
+            });
         }
         if(sources.length)return [...new Set(sources)];
-        const uri = dataTransfer.getData('text/uri-list');
-        if (uri) sources.push(...uri.split(/\r?\n/).filter(line => line && !line.startsWith('#')));
+        if (uri) sources.push(...uri.split(/\r?\n/).filter(line => line && !line.startsWith('#')).map(line => fullImageFromLink(line) || line));
         const plain = dataTransfer.getData('text/plain');
         if (plain && (/^data:image\//i.test(plain.trim()) || /^https?:\/\//i.test(plain.trim()))) sources.push(plain.trim());
         return [...new Set(sources)];
@@ -7757,8 +7772,10 @@ function createNoteImageColorMemory(options={}){
 
 
 /* Source: 89-external-images.js */
-/* Public Yamol images need an owner-authenticated server read because their
-   display permission and browser pixel-reading permission are different. */
+/* Images dragged or pasted as web links (Yamol, Google Images, any site) are downloaded and
+   stored with the note. Sites that allow it are read directly by the browser; the rest go
+   through the owner's image proxy, because a browser may show another site's image but not
+   read its bytes. */
 const noteExternalImages=(()=>{
     const pending=new Map(),cache=new Map();
     function normalize(value){
@@ -7768,20 +7785,27 @@ const noteExternalImages=(()=>{
         if(/^https?:$/.test(u.protocol))u.hash='';return u.href;
     }
     const isYamol=host=>host==='yamol.tw'||host.endsWith('.yamol.tw');
-    function supported(value){try{const u=new URL(normalize(value));return u.protocol==='https:'&&isYamol(u.hostname);}catch(_){return false;}}
+    function supported(value){try{return /^https?:$/.test(new URL(normalize(value)).protocol);}catch(_){return false;}}
+    const fallbacks=new Map();
+    function setFallback(url,fallback){if(url&&fallback&&url!==fallback)fallbacks.set(url,fallback);while(fallbacks.size>50)fallbacks.delete(fallbacks.keys().next().value);}
     function abort(signal){if(signal?.aborted)throw Error('已停止圖片載入');}
     function read(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(Error('圖片讀取失敗'));r.readAsDataURL(blob);});}
+    async function direct(url){
+        if(isYamol(new URL(url).hostname))return null;          // Yamol never allows direct reads
+        try{
+            const response=await fetch(url,{credentials:'omit',referrerPolicy:'no-referrer'});
+            if(!response.ok)return null;
+            const blob=await response.blob();
+            return blob.type.startsWith('image/')&&blob.size<=16*1024*1024?read(blob):null;
+        }catch(_){return null;}
+    }
     async function fetchImage(url){
-        if(supported(url)){
-            const result=await noteDriveRpc('externalImage',{url},noteDriveBoot.book,undefined,0);
-            if(!result.data||!/^image\//.test(result.mime)||!Number.isSafeInteger(result.bytes)||result.bytes>16*1024*1024)throw Error('外部圖片回覆不完整');
-            const bytes=Uint8Array.from(atob(result.data),c=>c.charCodeAt(0)),hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(v=>v.toString(16).padStart(2,'0')).join('');
-            if(bytes.length!==result.bytes||hash!==result.key)throw Error('外部圖片校驗失敗，請重試');
-            return 'data:'+result.mime+';base64,'+result.data;
-        }
-        let response;try{response=await fetch(url,{credentials:'omit'});}catch(_){throw Error('來源網站未允許瀏覽器讀取這張圖片；阿摩圖片可由私人伺服器匯入');}
-        if(!response.ok)throw Error('圖片來源回覆 '+response.status);
-        const blob=await response.blob();if(!blob.type.startsWith('image/'))throw Error('圖片連結回覆的不是圖片');if(blob.size>16*1024*1024)throw Error('單張外部圖片超過 16 MB');return read(blob);
+        const quick=await direct(url);if(quick)return quick;
+        const result=await noteDriveRpc('externalImage',{url},noteDriveBoot.book,undefined,0);
+        if(!result.data||!/^image\//.test(result.mime)||!Number.isSafeInteger(result.bytes)||result.bytes>16*1024*1024)throw Error('外部圖片回覆不完整');
+        const bytes=Uint8Array.from(atob(result.data),c=>c.charCodeAt(0)),hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(v=>v.toString(16).padStart(2,'0')).join('');
+        if(bytes.length!==result.bytes||hash!==result.key)throw Error('外部圖片校驗失敗，請重試');
+        return 'data:'+result.mime+';base64,'+result.data;
     }
     async function resolve(value,{signal}={}){
         abort(signal);const url=normalize(value);if(url.startsWith('data:image/'))return url;
@@ -7793,9 +7817,14 @@ const noteExternalImages=(()=>{
     }
     async function prepareInsert(source){
         if(!supported(source))return source;
-        try{return await resolve(source);}catch(error){showPreviewModeToast('圖片連結已保留，原圖匯入未完成：'+error.message+'。可稍後按「編輯／標記」重試。');return source;}
+        try{return await resolve(source);}
+        catch(error){
+            const fallback=fallbacks.get(source);   // e.g. the Google Images thumbnail when the full-size page blocks downloads
+            if(fallback){try{return fallback.startsWith('data:image/')?fallback:await resolve(fallback);}catch(_){}}
+            showPreviewModeToast('圖片連結已保留，原圖匯入未完成：'+error.message+'。可稍後按「編輯／標記」重試。');return source;
+        }
     }
-    return {resolve,supported,prepareInsert,normalize};
+    return {resolve,supported,prepareInsert,normalize,setFallback};
 })();
 
 /* Source: 90-image-storage.js */

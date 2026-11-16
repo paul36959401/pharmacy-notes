@@ -508,19 +508,23 @@ const noteDriveServer = (() => {
         }
     }
 
-    /* ---------- Yamol images: fetched by a tiny Apps Script proxy (tools/yamol-image-proxy.gs),
-       because yamol.tw does not let other websites read its image pixels. ---------- */
+    /* ---------- Images dragged in from other websites (Yamol, Google Images, ...).
+       Browsers may not read another site's image bytes, so a small Apps Script proxy owned
+       by the user downloads them (tools/image-proxy.gs). The proxy only serves the owner:
+       it checks this site's Google sign-in token before fetching anything. ---------- */
     async function externalImage(url) {
         const proxy = window.NOTE_SITE_CONFIG?.imageProxyUrl;
-        if (!proxy) throw fail('阿摩圖片代理尚未設定；圖片連結與筆記都會保留。截圖貼上或「複製圖片」再貼上仍可使用。', 'EXTERNAL_IMAGE_PROXY', false);
+        if (!proxy) throw fail('圖片代理尚未設定；圖片連結與筆記都會保留。截圖貼上或「複製圖片」再貼上仍可使用。', 'EXTERNAL_IMAGE_PROXY', false);
         let response;
-        try {response = await fetch(proxy + '?url=' + encodeURIComponent(url), {credentials: 'omit', redirect: 'follow'});}
-        catch (_) {throw fail('無法連到阿摩圖片代理，請檢查網路；圖片連結仍保留。', 'EXTERNAL_IMAGE_PROXY');}
-        if (!response.ok) throw fail('阿摩圖片代理回覆 ' + response.status + '；圖片連結仍保留。', 'EXTERNAL_IMAGE_PROXY');
+        try {
+            response = await fetch(proxy, {method: 'POST', credentials: 'omit', redirect: 'follow',
+                headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify({url, token: await noteAuth.getToken()})});
+        } catch (_) {throw fail('無法連到圖片代理，請檢查網路；圖片連結仍保留。', 'EXTERNAL_IMAGE_PROXY');}
+        if (!response.ok) throw fail('圖片代理回覆 ' + response.status + '；圖片連結仍保留。', 'EXTERNAL_IMAGE_PROXY');
         let value;
         try {value = await response.json();}
-        catch (_) {throw fail('阿摩圖片代理回覆格式不正確（請確認部署的存取權是「所有人」）。', 'EXTERNAL_IMAGE_PROXY', false);}
-        if (!value?.success) throw fail(value?.error || '阿摩圖片讀取失敗。', value?.code || 'EXTERNAL_IMAGE_HTTP', value?.retryable !== false);
+        catch (_) {throw fail('圖片代理回覆格式不正確（請確認部署的存取權是「所有人」）。', 'EXTERNAL_IMAGE_PROXY', false);}
+        if (!value?.success) throw fail(value?.error || '圖片讀取失敗。', value?.code || 'EXTERNAL_IMAGE_HTTP', value?.retryable !== false);
         return value;
     }
 
