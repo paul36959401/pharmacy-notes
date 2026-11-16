@@ -22,7 +22,9 @@
     document.getElementById('drive-start-reload').onclick = () => location.reload();
 
     function readOnlyBanner() {
-        const allowed = localStorage.getItem('nd-allow-write') === '1';
+        // Verification is finished (2026-11-16), so editing is on by default. Setting
+        // localStorage 'nd-allow-write' to '0' brings the read-only check mode back.
+        const allowed = localStorage.getItem('nd-allow-write') !== '0';
         noteDriveServer.setReadOnly(!allowed);
         const bar = document.getElementById('site-readonly');
         bar.hidden = allowed;

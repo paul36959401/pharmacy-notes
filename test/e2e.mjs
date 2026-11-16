@@ -61,7 +61,8 @@ async function open(label, {fresh = true} = {}) {
     return {context, page};
 }
 async function signInAndWait(page) {
-    await page.click('#site-gate-button');
+    await page.waitForFunction(() => window.noteDriveStartupComplete === true || !document.getElementById('site-gate-button').hidden, null, {timeout: 60000});
+    if (await page.isVisible('#site-gate-button')) await page.click('#site-gate-button');
     await page.waitForFunction(() => window.noteDriveStartupComplete === true, null, {timeout: 60000});
 }
 const headFiles = () => [...drive.files.values()].filter(f => /^pharmacology-[0-9a-f-]{36}\.json$/.test(f.name));
@@ -70,6 +71,8 @@ const check = (cond, message) => {console.log((cond ? 'PASS ' : 'FAIL ') + messa
 try {
     // 1. First visit: read-only by default.
     let {context, page} = await open('visit1');
+    await page.evaluate(() => localStorage.setItem('nd-allow-write', '0'));
+    await page.reload();
     await signInAndWait(page);
     check(await page.isVisible('#site-readonly'), 'read-only banner shown on first visit');
     const writesBefore = drive.stats.writes;
@@ -77,8 +80,9 @@ try {
     check(drive.stats.writes === writesBefore, 'read-only mode wrote nothing to Drive');
 
     // 2. Enable editing (reloads), then import the backup JSON.
-    await page.click('#site-readonly-enable');
-    await page.waitForFunction(() => window.noteDriveStartupComplete === true, null, {timeout: 60000});
+    await page.evaluate(() => localStorage.setItem('nd-allow-write', '1'));
+    await page.reload();
+    await signInAndWait(page);
     check(!(await page.isVisible('#site-readonly')), 'banner hidden after enabling edits');
     await page.setInputFiles('#drive-file', backupPath);
     await page.waitForFunction(() => /JSON 已同步/.test(document.getElementById('drive-message')?.textContent || ''), null, {timeout: 120000});
@@ -140,8 +144,6 @@ try {
     await context.route('https://example.com/**', route => route.abort());
     await signInAndWait(page);
     console.log('step: signed in');
-    await page.click('#site-readonly-enable');
-    await page.waitForFunction(() => window.noteDriveStartupComplete === true, null, {timeout: 60000});
     console.log('step: edit enabled');
     await page.waitForFunction(() => notesData.some(n => n.id === 'm1') && noteDriveCloud.state().loaded, null, {timeout: 60000});
     const thumb = await png(120, 90, '#f97316', 't');

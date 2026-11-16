@@ -63,8 +63,6 @@ const out = process.argv[2] || '/tmp/shots';
 await (await import('node:fs/promises')).mkdir(out, {recursive: true});
 try {
     let {context, page} = await open({width: 1100, height: 900});
-    await page.click('#site-readonly-enable');
-    await page.waitForFunction(() => window.noteDriveStartupComplete === true, null, {timeout: 60000});
     await page.setInputFiles('#drive-file', backupPath);
     await page.waitForFunction(() => /JSON 已同步/.test(document.getElementById('drive-message')?.textContent || ''), null, {timeout: 120000});
     await page.waitForTimeout(3000);
