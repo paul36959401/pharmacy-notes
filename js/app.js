@@ -9330,8 +9330,10 @@ const noteLinkedImages = (() => {
     function pending() {return notesData.filter(note => linkedIn(note.text).length);}
     function count() {return notesData.reduce((n, note) => n + linkedIn(note.text).length, 0);}
 
+    /* The editor treats a downloaded copy as "the same image" as its web link (so it
+       never stores duplicates), which means swapping it in the editor is not saved.
+       So the note's HTML is updated directly and saved through the normal autosave. */
     async function storeNote(note, failures) {
-        // 1) Download first, with the editor closed, so nothing can reload it meanwhile.
         const urls = [...new Set(linkedIn(note.text))], ready = new Map();
         for (const url of urls) {
             try {
@@ -9341,25 +9343,22 @@ const noteLinkedImages = (() => {
             } catch (error) {failures.push({note: label(note), url, message: error.message});}
         }
         if (!ready.size) return 0;
-        // 2) Open the note, swap every matching image in one step, save at once.
-        const modal = document.getElementById('noteModal');
-        const before = imagesIn(note.text).length, linkedBefore = linkedIn(note.text).length;
-        await openEditModal(note.id);
-        await waitFor(() => modal.classList.contains('active') && editingNoteId === note.id);
-        await new Promise(r => setTimeout(r, 300));
+        const current = notesData.find(n => n.id === note.id);
+        if (!current) return 0;
+        const template = document.createElement('template');
+        template.innerHTML = current.text;
         let changed = 0;
-        for (const image of document.querySelectorAll('#modal-text img')) {
+        for (const image of template.content.querySelectorAll('img')) {
             const data = ready.get(image.getAttribute('src'));
             if (!data) continue;
             image.setAttribute('src', data); image.removeAttribute('srcset'); changed++;
         }
-        if (changed) saveNote(); else closeModal();
-        await waitFor(() => !modal.classList.contains('active'));
-        const saved = notesData.find(n => n.id === note.id);
-        if (!saved || imagesIn(saved.text).length !== before) throw new Error(label(note) + '儲存後圖片數不符，已停止；可從「垃圾桶與版本」還原。');
-        const stored = linkedBefore - linkedIn(saved.text).length;
-        if (changed && stored <= 0) throw new Error(label(note) + '的圖片沒有成功存進筆記，已停止。');
-        return stored;
+        if (!changed) return 0;
+        const before = imagesIn(current.text).length, linkedBefore = linkedIn(current.text).length;
+        const next = {...current, text: template.innerHTML, updatedAt: new Date().toISOString()};
+        if (imagesIn(next.text).length !== before) throw new Error(label(note) + '處理後圖片數不符，已停止。');
+        notesData[notesData.indexOf(current)] = next;
+        return linkedBefore - linkedIn(next.text).length;
     }
     async function run(onProgress = () => {}) {
         if (running) return;
@@ -9370,11 +9369,15 @@ const noteLinkedImages = (() => {
             await notePersistence.flush();
             const list = pending(), total = count(), failures = [];
             let stored = 0, done = 0;
+            if (document.getElementById('noteModal').classList.contains('active')) throw new Error('請先關閉正在編輯的筆記。');
             for (const note of list) {
                 stored += await storeNote(note, failures);
                 onProgress(++done, list.length, stored, total);
+                if (done % 10 === 0) {autoSave(100); await notePersistence.flush();}
             }
+            autoSave(100);
             await notePersistence.flush();
+            filterNotes();
             return {notes: list.length, total, stored, failures};
         } finally {running = false;}
     }

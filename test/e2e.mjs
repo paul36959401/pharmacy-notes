@@ -185,6 +185,8 @@ try {
     await signInAndWait(page);
     await page.waitForTimeout(1500);
     check(/Omeprazole/.test(await page.textContent('body')), 'loads by searching head files when no pointer exists (old-site data)');
+    await page.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
+    check(await page.evaluate(() => !/img\.yamol/.test(notesData.find(n => n.id === 'n4')?.text || 'img.yamol')), 'stored linked image survives reload from Drive');
     await context.close();
 } catch (error) {
     console.error('TEST ERROR', error); process.exitCode = 1;
