@@ -74,7 +74,8 @@ function initializeDriveWorkspace(){
 
 /* Pagination only changes the rendered slice. Every record stays in notesData and cloud storage. */
 const noteBrowse=(()=>{
-    const allowed=new Set([0,1,3,5,10,20]);
+    const allowed=new Set([-1,0,1,3,5,10,20]);   // -1 = 捲動載入 (load more while scrolling)
+    const STEP=20;let infinite=false,loaded=STEP,loadObserver=null;
     let size=5,page=0,items=[],lastContext=null,pendingId=null,restored=false,initialized=false,saved={},storageKey='',printState=null,hold=null,scrollFrame=0,composing=false,scrollHold=null;
     const consumedClicks=new WeakMap();
     const el=id=>document.getElementById(id);
@@ -83,17 +84,18 @@ const noteBrowse=(()=>{
     const pageCount=()=>size?Math.max(1,Math.ceil(items.length/size)):1;
     const message=text=>{el('note-reader-message').textContent=text;el('note-reader-message').hidden=!text;};
     function remember(){
-        saved={...saved,size};
-        if(lastContext===normalContext()&&items.length)saved={size,page,anchorId:String(items[size?page*size:0]?.id??'')};
+        saved={...saved,size:infinite?-1:size};
+        if(lastContext===normalContext()&&items.length)saved={size:infinite?-1:size,page,anchorId:String(items[size?page*size:0]?.id??'')};
         try{localStorage.setItem(storageKey,JSON.stringify(saved));}catch(_){}
     }
     function update(){
-        const count=pageCount(),start=items.length?(size?page*size+1:1):0,end=size?Math.min(items.length,(page+1)*size):items.length;
+        const count=pageCount(),start=items.length?(size?page*size+1:1):0,end=size?Math.min(items.length,(page+1)*size):infinite?Math.min(items.length,loaded):items.length;
         const filtered=lastContext!==null&&lastContext!==normalContext();
         const summary=lastContext===null?'正在讀取…':(filtered?'篩選 ':'')+start+'–'+end+'／'+items.length+' 則';
         el('note-page-summary').textContent=summary;el('note-page-summary').setAttribute('aria-live',hold?'off':'polite');
         el('note-page-size').title=summary+'；調整每頁筆記數';
-        el('note-page-size').value=String(size);el('note-page-total').textContent='／'+count+' 頁';
+        el('note-page-size').value=String(infinite?-1:size);el('note-page-total').textContent='／'+count+' 頁';
+        const more=el('note-load-more');if(more){more.hidden=!infinite||end>=items.length;more.textContent='往下捲載入更多（已顯示 '+end+'／'+items.length+' 則）';}
         if(document.activeElement!==el('note-page-input'))el('note-page-input').value=String(page+1);
         el('note-page-input').disabled=!size||count<=1;
         el('note-page-first').disabled=el('note-page-prev').disabled=el('note-side-prev').disabled=page===0;
@@ -106,7 +108,7 @@ const noteBrowse=(()=>{
     function select(list){
         if(printState)return list;
         const nextContext=context();
-        if(lastContext!==null&&lastContext!==nextContext){page=0;message('');}
+        if(lastContext!==null&&lastContext!==nextContext){page=0;loaded=STEP;message('');}
         lastContext=nextContext;items=list;
         if(!restored&&list.length){
             if(lastContext===normalContext()){
@@ -115,9 +117,9 @@ const noteBrowse=(()=>{
             }
             restored=true;
         }
-        if(pendingId!==null){const index=list.findIndex(note=>String(note.id)===pendingId);if(index>=0)page=size?Math.floor(index/size):0;pendingId=null;}
+        if(pendingId!==null){const index=list.findIndex(note=>String(note.id)===pendingId);if(index>=0){page=size?Math.floor(index/size):0;if(infinite)loaded=Math.max(loaded,index+5);}pendingId=null;}
         page=Math.max(0,Math.min(page,pageCount()-1));update();
-        return size?list.slice(page*size,(page+1)*size):list;
+        return size?list.slice(page*size,(page+1)*size):infinite?list.slice(0,loaded):list;
     }
     function scrollToStart(){
         cancelAnimationFrame(scrollFrame);scrollFrame=requestAnimationFrame(()=>{
@@ -229,15 +231,27 @@ const noteBrowse=(()=>{
     function requestReveal(id){pendingId=String(id);}
     function reveal(id){
         const index=items.findIndex(note=>String(note.id)===String(id));if(index<0)return false;
+        if(infinite&&index>=loaded){loaded=index+5;renderNotes(items);return true;}
         const next=size?Math.floor(index/size):0;if(next!==page){page=next;renderNotes(items);remember();}
         return true;
+    }
+    /* 捲動載入: a marker under the list; when it comes near the screen, show 20 more notes. */
+    function setupLoadMore(){
+        const list=el('note-list');if(!list||el('note-load-more'))return;
+        const more=document.createElement('div');more.id='note-load-more';more.className='note-load-more';more.hidden=true;more.setAttribute('role','status');
+        list.after(more);
+        const grow=()=>{if(!infinite||loaded>=items.length||document.querySelector('.container').inert)return;loaded+=STEP;filterNotes({background:true});
+            requestAnimationFrame(()=>{if(!more.hidden&&more.getBoundingClientRect().top<innerHeight+800)grow();});};
+        more.addEventListener('click',grow);
+        if(typeof IntersectionObserver==='function'){loadObserver=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting))grow();},{rootMargin:'0px 0px 800px 0px'});loadObserver.observe(more);}
     }
     function integer(value){const text=String(value).normalize('NFKC').trim(),n=Number(text);return /^[0-9]+$/.test(text)&&Number.isSafeInteger(n)&&n>0?n:null;}
     function initialize(){
         if(initialized)return;initialized=true;
         let hash=2166136261;for(const c of (noteDriveBoot.workspace||noteDriveBoot.appUrl||SCRIPT_URL))hash=Math.imul(hash^c.charCodeAt(0),16777619);
         storageKey='pharmacy-note-reading-v1-'+noteDriveBoot.book+'-'+(hash>>>0).toString(36);
-        try{saved=JSON.parse(localStorage.getItem(storageKey)||'{}')||{};if(allowed.has(saved.size))size=saved.size;}catch(_){saved={};}
+        try{saved=JSON.parse(localStorage.getItem(storageKey)||'{}')||{};if(allowed.has(saved.size)){infinite=saved.size===-1;size=infinite?0:saved.size;}}catch(_){saved={};}
+        setupLoadMore();
         const search=el('search-input');search.enterKeyHint='search';
         search.addEventListener('keydown',event=>{
             if(event.key!=='Enter'||event.repeat||event.isComposing||composing||(event.keyCode||event.which)===229||event.altKey||event.ctrlKey||event.metaKey)return;
@@ -250,7 +264,7 @@ const noteBrowse=(()=>{
         el('note-page-size').addEventListener('change',()=>{
             stopReadingMotion();
             const anchor=items[size?page*size:0]?.id,value=Number(el('note-page-size').value);if(!allowed.has(value))return;
-            size=value;page=0;if(anchor!=null)requestReveal(anchor);savedNoteFocusSession++;filterNotes();remember();
+            infinite=value===-1;size=infinite?0:value;page=0;loaded=STEP;if(anchor!=null)requestReveal(anchor);savedNoteFocusSession++;filterNotes();remember();
             if(anchor!=null)focusSavedNoteAfterSave(anchor);else scrollToStart();
         });
         el('note-page-first').onclick=()=>{stopReadingMotion();go(0);};el('note-page-last').onclick=()=>{stopReadingMotion();go(pageCount()-1);};

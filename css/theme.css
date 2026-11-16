@@ -113,3 +113,16 @@ html[data-theme="dark"] ::selection {
     transition: none;
   }
 }
+
+/* 捲動載入 marker under the note list */
+.note-load-more {
+  margin: 8px auto 24px;
+  padding: 12px;
+  text-align: center;
+  color: #78716c;
+  font-size: .9rem;
+  cursor: pointer;
+}
+.note-load-more[hidden] {
+  display: none;
+}

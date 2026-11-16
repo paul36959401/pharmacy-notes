@@ -141,7 +141,7 @@
                         style="background:${escapeAttribute(category.color)};color:${categoryTextColor(category.color)}"
                         title="${escapeAttribute(category.name)}｜點擊只顯示此分類"
                         aria-label="${escapeAttribute(category.name)}"
-                        onclick="event.stopPropagation(); applyCategoryFilter(${inlineJsArgument(category.id)})"
+                        data-on-click="applyCategoryFilter" data-args="[${inlineJsArgument(category.id)}]" data-stop
                     >${categoryVerticalLabelHtml(category)}</button>
                 `)
                 .join('');
@@ -149,7 +149,7 @@
             item.innerHTML = `
                 <div class="note-number-container">
                     <div class="note-star-number-row">
-                        <button type="button" class="note-star-button" data-note-star="${escapeAttribute(note.id)}" aria-label="${note.starred?'取消最愛':'加入最愛'}" aria-pressed="${!!note.starred}" onclick="toggleStar(${inlineJsArgument(note.id)})">
+                        <button type="button" class="note-star-button" data-note-star="${escapeAttribute(note.id)}" aria-label="${note.starred?'取消最愛':'加入最愛'}" aria-pressed="${!!note.starred}" data-on-click="toggleStar" data-args="[${inlineJsArgument(note.id)}]">
                             <svg viewBox="0 0 24 24" fill="${note.starred?'currentColor':'none'}" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.5 4.4 1.1 6.2-5.7-3-5.7 3 1.1-6.2-4.5-4.4 6.3-.9L12 3Z"/></svg>
                         </button>
                         <div class="note-number">${absoluteIndex + 1}.</div>
@@ -158,7 +158,7 @@
                     <button
                         type="button"
                         class="note-category-add"
-                        onclick="event.stopPropagation(); openNoteCategoryModal(${inlineJsArgument(note.id)})"
+                        data-on-click="openNoteCategoryModal" data-args="[${inlineJsArgument(note.id)}]" data-stop
                         title="${noteCategories.length ? '修改分類' : '新增分類'}"
                         aria-label="${noteCategories.length ? '修改分類' : '新增分類'}"
                     >
@@ -183,7 +183,7 @@
                 <div class="note-actions">
                     <button
                         class="btn-delete"
-                        onclick="event.stopPropagation(); deleteNote(${inlineJsArgument(note.id)})"
+                        data-on-click="deleteNote" data-args="[${inlineJsArgument(note.id)}]" data-stop
                         title="移到垃圾桶（30 天內可還原）"
                         aria-label="將這則筆記移到垃圾桶"
                     >
@@ -247,7 +247,7 @@
 
                 <div
                     class="preview-image-box"
-                    onclick="openGalleryImageViewer(${index})"
+                    data-on-click="openGalleryImageViewer" data-args="[${index}]"
                     title="點一下放大；按住圖片可拖曳排序"
                 >
                     <img
@@ -264,11 +264,11 @@
                 </div>
 
                 <div class="preview-actions">
-                    <button type="button" class="btn-preview-edit" onclick="noteImageEditor.open({gallery:${index}})">編輯／標記</button>
+                    <button type="button" class="btn-preview-edit" data-on-click="noteImageEditor.open" data-args="[{&quot;gallery&quot;:${index}}]">編輯／標記</button>
                     <button
                         type="button"
                         class="btn-preview-insert"
-                        onclick="moveGalleryImageInline(${index})"
+                        data-on-click="moveGalleryImageInline" data-args="[${index}]"
                     >
                         <i class="fas fa-arrow-up"></i> 移入文字
                     </button>
@@ -276,7 +276,7 @@
                     <button
                         type="button"
                         class="btn-preview-remove"
-                        onclick="removeSingleImage(${index})"
+                        data-on-click="removeSingleImage" data-args="[${index}]"
                     >
                         <i class="fas fa-trash"></i> 移除
                     </button>

@@ -189,6 +189,35 @@ try {
     check(/Omeprazole/.test(await page.textContent('body')), 'loads by searching head files when no pointer exists (old-site data)');
     await page.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
     check(await page.evaluate(() => !/img\.yamol/.test(notesData.find(n => n.id === 'n4')?.text || 'img.yamol')), 'stored linked image survives reload from Drive');
+    // Buttons wired through data-on-* (no inline JavaScript).
+    check(await page.evaluate(() => document.querySelectorAll('[onclick],[onmousedown],[oninput],[onchange],[onkeydown]').length) === 0, 'no inline JavaScript handlers left in the page');
+    await page.click('#fab-history');
+    check(await page.evaluate(() => document.getElementById('historyModal').classList.contains('active')), 'toolbar button opens the history window');
+    await page.click('#historyModal [data-on-click="closeHistoryModal"]');
+    check(await page.evaluate(() => !document.getElementById('historyModal').classList.contains('active')), 'close button closes it');
+    await page.evaluate(() => openEditModal('m3'));
+    await page.waitForFunction(() => document.getElementById('noteModal').classList.contains('active'));
+    await page.click('#modal-text');
+    await page.keyboard.press('Control+A');
+    await page.click('[data-on-mousedown="applyEditorCommand"][data-args*="bold"]');
+    await page.waitForTimeout(200);
+    check(await page.evaluate(() => /<(b|strong)\b/.test(document.getElementById('modal-text').innerHTML)), 'editor bold button still works');
+    await page.evaluate(() => saveNote()); await page.waitForTimeout(500);
+    const starBefore = await page.evaluate(() => !!notesData.find(n => n.id === 'm2').starred);
+    await page.click('#note-m2 [data-on-click="toggleStar"]').catch(async () => page.evaluate(() => document.querySelector('[data-on-click="toggleStar"][data-args*="m2"]')?.click()));
+    await page.waitForTimeout(300);
+    check(await page.evaluate(() => !!notesData.find(n => n.id === 'm2').starred) !== starBefore, 'star button toggles the star');
+    // 捲動載入: 20 notes first, more while scrolling.
+    await page.waitForFunction(() => document.getElementById('sync-status')?.dataset.syncState === 'success', null, {timeout: 60000}).catch(() => {});
+    await page.waitForTimeout(1000);
+    await page.evaluate(() => {for (let i = 0; i < 50; i++) notesData.push({id: 'x' + i, title: '', text: '<p>捲動測試 ' + i + '</p>', categoryIds: [], createdAt: '2025-03-01T00:00:00Z'}); filterNotes();});
+    await page.selectOption('#note-page-size', '-1');
+    await page.waitForTimeout(800);
+    const first = await page.$$eval('#note-list .note-item', l => l.length);
+    for (let y = 0; y < 30; y++) {await page.mouse.wheel(0, 1200); await page.waitForTimeout(120);}
+    await page.waitForTimeout(800);
+    const later = await page.$$eval('#note-list .note-item', l => l.length);
+    check(first === 20 && later === 66, '捲動載入 shows 20 first, then all 66 while scrolling (' + first + ' -> ' + later + ')');
     await context.close();
 } catch (error) {
     console.error('TEST ERROR', error); process.exitCode = 1;

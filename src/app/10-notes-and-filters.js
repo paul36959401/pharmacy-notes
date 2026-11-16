@@ -686,7 +686,7 @@
         } else {
             grid.innerHTML = categoryDefinitions.map(category => {
                 const count = notesData.filter(note => getNoteCategoryIds(note).includes(category.id)).length;
-                return `<button type="button" class="category-overview-card ${activeCategoryFilterId === category.id ? 'active' : ''}" onclick="applyCategoryFilter(${inlineJsArgument(category.id)})">
+                return `<button type="button" class="category-overview-card ${activeCategoryFilterId === category.id ? 'active' : ''}" data-on-click="applyCategoryFilter" data-args="[${inlineJsArgument(category.id)}]">
                     <div class="category-card-color" style="background:${escapeAttribute(category.color)}"></div>
                     <div class="category-card-main">
                         <span class="category-card-abbr" style="background:${escapeAttribute(category.color)};color:${categoryTextColor(category.color)}">${escapeHtml(categoryDisplayAbbr(category))}</span>
@@ -703,8 +703,8 @@
                 <input type="color" id="category-color-${escapeAttribute(category.id)}" value="${escapeAttribute(category.color)}" title="調整顏色">
                 <input class="category-abbr-input" type="text" id="category-abbr-${escapeAttribute(category.id)}" value="${escapeAttribute(category.abbr)}" maxlength="4" title="左側直排顯示最多四個字">
                 <input type="text" id="category-name-${escapeAttribute(category.id)}" value="${escapeAttribute(category.name)}" maxlength="30" title="完整分類名稱">
-                <button type="button" class="btn-category-save" onclick="updateCategoryDefinition(${inlineJsArgument(category.id)})">儲存</button>
-                <button type="button" class="btn-category-delete" onclick="deleteCategoryDefinition(${inlineJsArgument(category.id)})">刪除</button>
+                <button type="button" class="btn-category-save" data-on-click="updateCategoryDefinition" data-args="[${inlineJsArgument(category.id)}]">儲存</button>
+                <button type="button" class="btn-category-delete" data-on-click="deleteCategoryDefinition" data-args="[${inlineJsArgument(category.id)}]">刪除</button>
             </div>`).join('') : '<div class="category-empty-hint">建立後可在這裡改名、換顏色或刪除。</div>';
     }
 
@@ -799,7 +799,7 @@
         picker.innerHTML = categoryDefinitions.map(category => categoryChipHtml(
             category,
             pendingCategoryIds.includes(category.id) ? 'selected' : '',
-            `onclick="togglePendingCategory(${inlineJsArgument(category.id)})" title="點擊勾選／取消"`
+            `data-on-click="togglePendingCategory" data-args="[${inlineJsArgument(category.id)}]" title="點擊勾選／取消"`
         )).join('');
     }
 
@@ -868,12 +868,12 @@
             if (categoryAssignEditingId === category.id) {
                 return `<div class="category-assign-row editing" data-category-id="${categoryId}">
                     <input type="color" id="assign-category-color-${categoryId}" value="${escapeAttribute(category.color)}" title="分類顏色">
-                    <input class="category-abbr-input" type="text" id="assign-category-abbr-${categoryId}" value="${escapeAttribute(category.abbr)}" maxlength="4" title="左側直排顯示最多四個字" onkeydown="handleAssignCategoryEditKeydown(event, ${inlineJsArgument(category.id)})">
-                    <input type="text" id="assign-category-name-${categoryId}" value="${escapeAttribute(category.name)}" maxlength="30" title="完整分類名稱" onkeydown="handleAssignCategoryEditKeydown(event, ${inlineJsArgument(category.id)})">
+                    <input class="category-abbr-input" type="text" id="assign-category-abbr-${categoryId}" value="${escapeAttribute(category.abbr)}" maxlength="4" title="左側直排顯示最多四個字" data-on-keydown="handleAssignCategoryEditKeydown" data-args="[&quot;$event&quot;,${inlineJsArgument(category.id)}]">
+                    <input type="text" id="assign-category-name-${categoryId}" value="${escapeAttribute(category.name)}" maxlength="30" title="完整分類名稱" data-on-keydown="handleAssignCategoryEditKeydown" data-args="[&quot;$event&quot;,${inlineJsArgument(category.id)}]">
                     <div class="category-assign-edit-actions">
-                        <button type="button" class="category-assign-edit-save" onclick="saveCategoryEditFromAssignModal(${inlineJsArgument(category.id)})">儲存</button>
-                        <button type="button" class="category-assign-edit-cancel" onclick="cancelCategoryEditFromAssignModal()">取消</button>
-                        <button type="button" class="category-assign-edit-delete" onclick="deleteCategoryFromAssignModal(${inlineJsArgument(category.id)})">刪除</button>
+                        <button type="button" class="category-assign-edit-save" data-on-click="saveCategoryEditFromAssignModal" data-args="[${inlineJsArgument(category.id)}]">儲存</button>
+                        <button type="button" class="category-assign-edit-cancel" data-on-click="cancelCategoryEditFromAssignModal">取消</button>
+                        <button type="button" class="category-assign-edit-delete" data-on-click="deleteCategoryFromAssignModal" data-args="[${inlineJsArgument(category.id)}]">刪除</button>
                     </div>
                 </div>`;
             }
@@ -883,11 +883,11 @@
                 ${categoryChipHtml(
                     category,
                     selected ? 'selected' : '',
-                    `onclick="toggleAssignCategory(${inlineJsArgument(category.id)})" title="點擊勾選／取消"`
+                    `data-on-click="toggleAssignCategory" data-args="[${inlineJsArgument(category.id)}]" title="點擊勾選／取消"`
                 )}
                 <div class="category-assign-row-actions">
-                    <button type="button" class="category-assign-icon-button" onclick="beginCategoryEditFromAssignModal(${inlineJsArgument(category.id)})" title="編輯分類" aria-label="編輯分類"><i class="fas fa-pen"></i></button>
-                    <button type="button" class="category-assign-icon-button delete" onclick="deleteCategoryFromAssignModal(${inlineJsArgument(category.id)})" title="刪除分類" aria-label="刪除分類"><i class="fas fa-trash"></i></button>
+                    <button type="button" class="category-assign-icon-button" data-on-click="beginCategoryEditFromAssignModal" data-args="[${inlineJsArgument(category.id)}]" title="編輯分類" aria-label="編輯分類"><i class="fas fa-pen"></i></button>
+                    <button type="button" class="category-assign-icon-button delete" data-on-click="deleteCategoryFromAssignModal" data-args="[${inlineJsArgument(category.id)}]" title="刪除分類" aria-label="刪除分類"><i class="fas fa-trash"></i></button>
                 </div>
             </div>`;
         }).join('');
@@ -1131,7 +1131,7 @@
                     </div>
                     <div class="history-preview">${escapeHtml(record.preview || '（無文字預覽）')}</div>
                     ${record.detail ? `<div class="history-detail">變更：${escapeHtml(record.detail)}</div>` : ''}
-                    ${stillExists ? `<button class="btn-locate-note" onclick="locateHistoryNote(${inlineJsArgument(record.noteId)})"><i class="fas fa-location-crosshairs"></i> 定位筆記</button>` : '<div class="history-detail">此筆記目前已被刪除</div>'}
+                    ${stillExists ? `<button class="btn-locate-note" data-on-click="locateHistoryNote" data-args="[${inlineJsArgument(record.noteId)}]"><i class="fas fa-location-crosshairs"></i> 定位筆記</button>` : '<div class="history-detail">此筆記目前已被刪除</div>'}
                 </div>`;
         }).join('');
     }

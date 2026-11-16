@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>藥學筆記雲端</title>
-<link rel="stylesheet" href="css/app.css?v=2026-11-16-pages-v10">
-<link rel="stylesheet" href="css/icons.css?v=2026-11-16-pages-v10">
-<link rel="stylesheet" href="css/site.css?v=2026-11-16-pages-v10">
-<link rel="stylesheet" href="css/theme.css?v=2026-11-16-pages-v10">
+<link rel="stylesheet" href="css/app.css?v=2026-11-17-pages-v11">
+<link rel="stylesheet" href="css/icons.css?v=2026-11-17-pages-v11">
+<link rel="stylesheet" href="css/site.css?v=2026-11-17-pages-v11">
+<link rel="stylesheet" href="css/theme.css?v=2026-11-17-pages-v11">
 <script>/* apply the saved light/dark choice before the page draws */try{var c=localStorage.getItem('nd-theme')||'light';document.documentElement.dataset.theme=(c==='dark'||(c==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light';}catch(e){}</script>
 </head>
 <body>
@@ -34,16 +34,16 @@
     <div class="top-bar">
         <div class="search-container">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
-            <input type="text" id="search-input" aria-label="搜尋筆記標題、內容、分類或圖片中的文字" placeholder="搜尋筆記、分類或圖片文字…" oninput="handleSearchInput(event)">
+            <input type="text" id="search-input" aria-label="搜尋筆記標題、內容、分類或圖片中的文字" placeholder="搜尋筆記、分類或圖片文字…" data-on-input="handleSearchInput" data-args="[&quot;$event&quot;]">
         </div>
         <div id="note-toolbar" class="note-toolbar" role="group" aria-label="筆記功能">
-            <button type="button" id="fab-history" class="note-toolbar-button" data-tool-label="編輯紀錄" aria-label="編輯紀錄" onclick="openHistoryModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 11a9 9 0 1 1 2.5 7"/><path d="M3 4v7h7"/><path d="M12 7v5l3 2"/></svg><span id="today-history-count" class="toolbar-sr-only" aria-hidden="true">0</span></button>
-            <button type="button" id="btn-category-overview" class="note-toolbar-button" data-tool-label="分類總覽" aria-label="分類總覽" onclick="openCategoryOverviewModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 3h7l10.4 10.4a2 2 0 0 1 0 2.8l-4.2 4.2a2 2 0 0 1-2.8 0L3 11V3Z"/><circle cx="7" cy="7" r="1"/></svg><span id="category-count-badge" class="toolbar-sr-only" aria-hidden="true">0</span></button>
-            <button type="button" id="fab-preview-toggle" class="note-toolbar-button" data-tool-label="預覽模式" aria-label="預覽模式" onclick="togglePreviewMode()" aria-pressed="false"><span id="fab-preview-icon" class="note-toolbar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></span></button>
-            <button type="button" id="fab-sort-move" class="note-toolbar-button" data-tool-label="筆記移動" aria-label="筆記移動" onclick="openMoveModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v18M7 8l5-5 5 5M7 16l5 5 5-5"/></svg></button>
-            <button type="button" id="fab-add" class="note-toolbar-button" data-tool-label="新增筆記" aria-label="新增筆記" onclick="openAddModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></button>
-            <button type="button" id="btn-filter-star" class="note-toolbar-button" data-tool-label="顯示星號" aria-label="顯示星號" onclick="toggleStarFilter()" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m12 3 2.8 5.7 6.3.9-4.5 4.4 1.1 6.2-5.7-3-5.7 3 1.1-6.2-4.5-4.4 6.3-.9L12 3Z"/></svg></button>
-            <button type="button" id="btn-random-draw" class="note-toolbar-button" data-tool-label="隨機抽筆記" aria-label="隨機抽筆記" onclick="openRandomDrawModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h2c5 0 9 12 14 12h2M3 18h2c1.8 0 3.4-1.5 5-3.6M14 9.6c1.7-2.1 3.2-3.6 5-3.6h2"/><path d="m18 3 3 3-3 3M18 15l3 3-3 3"/></svg></button>
+            <button type="button" id="fab-history" class="note-toolbar-button" data-tool-label="編輯紀錄" aria-label="編輯紀錄" data-on-click="openHistoryModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 11a9 9 0 1 1 2.5 7"/><path d="M3 4v7h7"/><path d="M12 7v5l3 2"/></svg><span id="today-history-count" class="toolbar-sr-only" aria-hidden="true">0</span></button>
+            <button type="button" id="btn-category-overview" class="note-toolbar-button" data-tool-label="分類總覽" aria-label="分類總覽" data-on-click="openCategoryOverviewModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 3h7l10.4 10.4a2 2 0 0 1 0 2.8l-4.2 4.2a2 2 0 0 1-2.8 0L3 11V3Z"/><circle cx="7" cy="7" r="1"/></svg><span id="category-count-badge" class="toolbar-sr-only" aria-hidden="true">0</span></button>
+            <button type="button" id="fab-preview-toggle" class="note-toolbar-button" data-tool-label="預覽模式" aria-label="預覽模式" data-on-click="togglePreviewMode" aria-pressed="false"><span id="fab-preview-icon" class="note-toolbar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></span></button>
+            <button type="button" id="fab-sort-move" class="note-toolbar-button" data-tool-label="筆記移動" aria-label="筆記移動" data-on-click="openMoveModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v18M7 8l5-5 5 5M7 16l5 5 5-5"/></svg></button>
+            <button type="button" id="fab-add" class="note-toolbar-button" data-tool-label="新增筆記" aria-label="新增筆記" data-on-click="openAddModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button type="button" id="btn-filter-star" class="note-toolbar-button" data-tool-label="顯示星號" aria-label="顯示星號" data-on-click="toggleStarFilter" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m12 3 2.8 5.7 6.3.9-4.5 4.4 1.1 6.2-5.7-3-5.7 3 1.1-6.2-4.5-4.4 6.3-.9L12 3Z"/></svg></button>
+            <button type="button" id="btn-random-draw" class="note-toolbar-button" data-tool-label="隨機抽筆記" aria-label="隨機抽筆記" data-on-click="openRandomDrawModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h2c5 0 9 12 14 12h2M3 18h2c1.8 0 3.4-1.5 5-3.6M14 9.6c1.7-2.1 3.2-3.6 5-3.6h2"/><path d="m18 3 3 3-3 3M18 15l3 3-3 3"/></svg></button>
             <button type="button" id="sync-status" class="note-toolbar-button" data-tool-label="雲端同步" aria-label="雲端同步" data-sync-state="syncing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 18a4.5 4.5 0 0 1-.8-8.9 7 7 0 0 1 13.6 0A4.5 4.5 0 0 1 18 18H6Z"/></svg><span id="status-dot" class="status-dot dot-syncing" aria-hidden="true"></span><span id="status-text" class="toolbar-sr-only" aria-live="polite">讀取中...</span></button>
         </div>
     </div>
@@ -53,14 +53,14 @@
             <span id="active-category-dot" class="active-category-dot"></span>
             <span>目前只顯示分類：<strong id="active-category-name"></strong></span>
         </div>
-        <button type="button" class="btn-clear-category" onclick="clearCategoryFilter()"><i class="fas fa-xmark"></i> 顯示全部分類</button>
+        <button type="button" class="btn-clear-category" data-on-click="clearCategoryFilter"><i class="fas fa-xmark"></i> 顯示全部分類</button>
     </div>
 
     <div id="active-random-filter-bar" class="random-filter-bar hidden">
         <div><i class="fas fa-shuffle"></i> <span id="active-random-summary">目前顯示隨機抽出的筆記</span></div>
         <div class="random-filter-actions">
-            <button type="button" onclick="repeatRandomDraw()"><i class="fas fa-rotate"></i> 再抽一次</button>
-            <button type="button" onclick="clearRandomDraw()"><i class="fas fa-xmark"></i> 結束隨機抽取</button>
+            <button type="button" data-on-click="repeatRandomDraw"><i class="fas fa-rotate"></i> 再抽一次</button>
+            <button type="button" data-on-click="clearRandomDraw"><i class="fas fa-xmark"></i> 結束隨機抽取</button>
         </div>
     </div>
 
@@ -70,7 +70,7 @@
   <form id="note-page-jump"><input id="note-page-input" type="text" inputmode="numeric" enterkeyhint="go" pattern="[0-9０-９]*" maxlength="9" autocomplete="off" title="輸入頁碼，按 Enter 或離開欄位即可前往" aria-label="頁碼，按 Enter 或離開欄位前往"><span id="note-page-total"></span><button class="toolbar-sr-only" type="submit">前往這一頁</button></form>
   <button id="note-page-next" type="button" data-note-page-hold="1" title="下一頁（D；長按連翻）" aria-label="下一頁"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
   <button id="note-page-last" type="button" title="最後一頁" aria-label="最後一頁"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 5 7 7-7 7m9-14 7 7-7 7"/></svg></button>
-  <label class="note-reader-size"><span class="toolbar-sr-only">每頁筆記數</span><select id="note-page-size" aria-label="每頁筆記數"><option value="1">1 則/頁</option><option value="3">3 則/頁</option><option value="5" selected>5 則/頁</option><option value="10">10 則/頁</option><option value="20">20 則/頁</option><option value="0">全部</option></select></label>
+  <label class="note-reader-size"><span class="toolbar-sr-only">每頁筆記數</span><select id="note-page-size" aria-label="每頁筆記數"><option value="1">1 則/頁</option><option value="3">3 則/頁</option><option value="5" selected>5 則/頁</option><option value="10">10 則/頁</option><option value="20">20 則/頁</option><option value="0">全部</option><option value="-1">捲動載入</option></select></label>
   <span id="note-page-summary" role="status" aria-live="polite"></span>
   <p id="note-reader-message" role="status" hidden></p>
 </nav>
@@ -107,37 +107,37 @@
 
         <div class="editor-toolbar">
             <div class="toolbar-row toolbar-row-main">
-                <button type="button" onmousedown="event.preventDefault(); applyEditorCommand('bold');" title="粗體 (Ctrl+B)"><i class="fas fa-bold"></i></button>
-                <button type="button" onmousedown="event.preventDefault(); applyEditorCommand('italic');" title="斜體 (Ctrl+I)"><i class="fas fa-italic"></i></button>
-                <button type="button" onmousedown="event.preventDefault(); applyEditorCommand('underline');" title="底線 (Ctrl+U)"><i class="fas fa-underline"></i></button>
+                <button type="button" data-on-mousedown="applyEditorCommand" data-args="[&quot;bold&quot;]" data-prevent title="粗體 (Ctrl+B)"><i class="fas fa-bold"></i></button>
+                <button type="button" data-on-mousedown="applyEditorCommand" data-args="[&quot;italic&quot;]" data-prevent title="斜體 (Ctrl+I)"><i class="fas fa-italic"></i></button>
+                <button type="button" data-on-mousedown="applyEditorCommand" data-args="[&quot;underline&quot;]" data-prevent title="底線 (Ctrl+U)"><i class="fas fa-underline"></i></button>
 
                 <div class="toolbar-divider"></div>
 
-                <button type="button" onmousedown="event.preventDefault(); changeFontSize(1);" title="放大字體（Alt + W）"><i class="fas fa-font"></i><i class="fas fa-plus" style="font-size:0.6rem;margin-left:2px;"></i></button>
-                <button type="button" onmousedown="event.preventDefault(); changeFontSize(-1);" title="縮小字體（Alt + S）"><i class="fas fa-font"></i><i class="fas fa-minus" style="font-size:0.6rem;margin-left:2px;"></i></button>
+                <button type="button" data-on-mousedown="changeFontSize" data-args="[1]" data-prevent title="放大字體（Alt + W）"><i class="fas fa-font"></i><i class="fas fa-plus" style="font-size:0.6rem;margin-left:2px;"></i></button>
+                <button type="button" data-on-mousedown="changeFontSize" data-args="[-1]" data-prevent title="縮小字體（Alt + S）"><i class="fas fa-font"></i><i class="fas fa-minus" style="font-size:0.6rem;margin-left:2px;"></i></button>
 
                 <div class="toolbar-divider"></div>
 
-                <button type="button" onmousedown="event.preventDefault(); applyEditorCommand('insertOrderedList');" title="數字編號"><i class="fas fa-list-ol"></i></button>
-                <button type="button" onmousedown="event.preventDefault(); toggleUnorderedList();" title="項目符號開關（Alt + V）"><i class="fas fa-list-ul"></i></button>
-                <button id="arrow-note-add" class="arrow-tool" type="button" onmousedown="event.preventDefault(); rememberEditorSelection();" onclick="addArrowNoteLine()" title="新增／取消目前箭頭（Alt+A）；取消時保留文字，選取一般文字可轉成箭頭清單" aria-label="新增或取消箭頭（Alt+A）" aria-pressed="false">↳ 箭頭</button>
-                <button id="arrow-note-indent" class="arrow-tool" type="button" onmousedown="event.preventDefault(); rememberEditorSelection();" onclick="changeArrowNoteIndent(1)" title="箭頭增加一層縮排（Tab）" aria-label="箭頭增加縮排" disabled><i class="fas fa-indent" aria-hidden="true"></i></button>
-                <button id="arrow-note-outdent" class="arrow-tool" type="button" onmousedown="event.preventDefault(); rememberEditorSelection();" onclick="changeArrowNoteIndent(-1)" title="箭頭減少一層縮排（Shift+Tab）；最外層會還原為一般段落" aria-label="箭頭減少縮排" disabled><i class="fas fa-outdent" aria-hidden="true"></i></button>
+                <button type="button" data-on-mousedown="applyEditorCommand" data-args="[&quot;insertOrderedList&quot;]" data-prevent title="數字編號"><i class="fas fa-list-ol"></i></button>
+                <button type="button" data-on-mousedown="toggleUnorderedList" data-prevent title="項目符號開關（Alt + V）"><i class="fas fa-list-ul"></i></button>
+                <button id="arrow-note-add" class="arrow-tool" type="button" data-on-mousedown="rememberEditorSelection" data-prevent data-on-click="addArrowNoteLine" title="新增／取消目前箭頭（Alt+A）；取消時保留文字，選取一般文字可轉成箭頭清單" aria-label="新增或取消箭頭（Alt+A）" aria-pressed="false">↳ 箭頭</button>
+                <button id="arrow-note-indent" class="arrow-tool" type="button" data-on-mousedown="rememberEditorSelection" data-prevent data-on-click="changeArrowNoteIndent" data-args="[1]" title="箭頭增加一層縮排（Tab）" aria-label="箭頭增加縮排" disabled><i class="fas fa-indent" aria-hidden="true"></i></button>
+                <button id="arrow-note-outdent" class="arrow-tool" type="button" data-on-mousedown="rememberEditorSelection" data-prevent data-on-click="changeArrowNoteIndent" data-args="[-1]" title="箭頭減少一層縮排（Shift+Tab）；最外層會還原為一般段落" aria-label="箭頭減少縮排" disabled><i class="fas fa-outdent" aria-hidden="true"></i></button>
                 <div class="toolbar-divider"></div>
 
-                <button type="button" onmousedown="event.preventDefault(); rememberEditorSelection();" onclick="chooseInlineImage()" title="把圖片插入目前游標位置；插入後可拖曳、縮放與對齊"><i class="fas fa-image"></i> 插入圖片</button>
+                <button type="button" data-on-mousedown="rememberEditorSelection" data-prevent data-on-click="chooseInlineImage" title="把圖片插入目前游標位置；插入後可拖曳、縮放與對齊"><i class="fas fa-image"></i> 插入圖片</button>
                 <input id="inline-image-file-input" type="file" accept="image/*" multiple hidden>
 
-                <button type="button" onmousedown="event.preventDefault(); rememberEditorSelection();" onclick="openTableCreateModal()" title="建立可整塊拖曳、可多格選取的表格"><i class="fas fa-table"></i> 建立表格</button>
+                <button type="button" data-on-mousedown="rememberEditorSelection" data-prevent data-on-click="openTableCreateModal" title="建立可整塊拖曳、可多格選取的表格"><i class="fas fa-table"></i> 建立表格</button>
 
-                <button type="button" onmousedown="event.preventDefault(); rememberEditorSelection();" onclick="openNoteLinkModal()" title="連結到網站中的另一則筆記"><i class="fas fa-link"></i> 連結筆記</button>
+                <button type="button" data-on-mousedown="rememberEditorSelection" data-prevent data-on-click="openNoteLinkModal" title="連結到網站中的另一則筆記"><i class="fas fa-link"></i> 連結筆記</button>
 
                 <div class="toolbar-divider"></div>
 
                 <div class="color-memory-group">
                     <div class="color-control" title="Alt+F 點按上色／取消；長按開色盤，按住 Alt 再點 F 換色">
                         <input type="color" id="textColor" value="#ef4444" aria-label="文字顏色">
-                        <button type="button" onmousedown="event.preventDefault(); toggleFormatColor('foreColor', 'textColor');" title="套用／取消目前文字顏色">
+                        <button type="button" data-on-mousedown="toggleFormatColor" data-args="[&quot;foreColor&quot;,&quot;textColor&quot;]" data-prevent title="套用／取消目前文字顏色">
                             <i id="text-color-icon" class="fas fa-font" style="color:#ef4444;"></i>
                         </button>
                     </div>
@@ -147,7 +147,7 @@
                 <div class="color-memory-group">
                     <div class="color-control" title="Alt+H 點按螢光筆／取消；長按開色盤，按住 Alt 再點 H 換色">
                         <input type="color" id="bgColor" value="#fef08a" aria-label="螢光筆顏色">
-                        <button type="button" onmousedown="event.preventDefault(); toggleFormatColor('backColor', 'bgColor');" title="套用／取消目前螢光筆顏色">
+                        <button type="button" data-on-mousedown="toggleFormatColor" data-args="[&quot;backColor&quot;,&quot;bgColor&quot;]" data-prevent title="套用／取消目前螢光筆顏色">
                             <i id="bg-color-icon" class="fas fa-highlighter" style="color:#eab308;"></i>
                         </button>
                     </div>
@@ -156,7 +156,7 @@
 
                 <div class="toolbar-divider"></div>
 
-                <button type="button" onmousedown="event.preventDefault(); clearFormatting();" title="清除格式（Alt+C）"><i class="fas fa-eraser"></i> 清除格式</button>
+                <button type="button" data-on-mousedown="clearFormatting" data-prevent title="清除格式（Alt+C）"><i class="fas fa-eraser"></i> 清除格式</button>
             </div>
         </div>
 
@@ -178,8 +178,8 @@
         </div>
 
         <div class="modal-actions">
-            <button class="btn-cancel" onclick="closeModal()">關閉</button>
-            <button class="btn-save" onclick="saveNote()">儲存並關閉</button>
+            <button class="btn-cancel" data-on-click="closeModal">關閉</button>
+            <button class="btn-save" data-on-click="saveNote">儲存並關閉</button>
         </div>
     </div>
 </div>
@@ -209,8 +209,8 @@
         </label>
 
         <div class="modal-actions">
-            <button class="btn-cancel" onclick="closeTableCreateModal()">取消</button>
-            <button class="btn-save" onclick="createTableFromModal()"><i class="fas fa-table"></i> 插入表格</button>
+            <button class="btn-cancel" data-on-click="closeTableCreateModal">取消</button>
+            <button class="btn-save" data-on-click="createTableFromModal"><i class="fas fa-table"></i> 插入表格</button>
         </div>
     </div>
 </div>
@@ -229,7 +229,7 @@
             </div>
             <div>
                 <label for="note-link-search">搜尋目標筆記</label>
-                <input id="note-link-search" type="text" placeholder="輸入筆記編號（例如 123、#123）、標題或內文…" oninput="renderNoteLinkCandidates()">
+                <input id="note-link-search" type="text" placeholder="輸入筆記編號（例如 123、#123）、標題或內文…" data-on-input="renderNoteLinkCandidates">
             </div>
         </div>
 
@@ -237,8 +237,8 @@
         <div id="note-link-list" class="note-link-list"></div>
 
         <div class="modal-actions">
-            <button class="btn-cancel" onclick="closeNoteLinkModal()">取消</button>
-            <button class="btn-save" onclick="insertSelectedNoteLink()"><i class="fas fa-link"></i> 插入連結</button>
+            <button class="btn-cancel" data-on-click="closeNoteLinkModal">取消</button>
+            <button class="btn-save" data-on-click="insertSelectedNoteLink"><i class="fas fa-link"></i> 插入連結</button>
         </div>
     </div>
 </div>
@@ -255,10 +255,10 @@
         </div>
 
         <div class="move-controls-box" style="display:flex; gap:10px;">
-            <button class="move-btn" style="background-color:#3b82f6;" onclick="executeAdvancedMove('top')">
+            <button class="move-btn" style="background-color:#3b82f6;" data-on-click="executeAdvancedMove" data-args="[&quot;top&quot;]">
                 <i class="fas fa-angle-double-up"></i> 直接置頂
             </button>
-            <button class="move-btn" style="background-color:#3b82f6;" onclick="executeAdvancedMove('bottom')">
+            <button class="move-btn" style="background-color:#3b82f6;" data-on-click="executeAdvancedMove" data-args="[&quot;bottom&quot;]">
                 <i class="fas fa-angle-double-down"></i> 直接置底
             </button>
         </div>
@@ -270,10 +270,10 @@
                 <span style="font-weight:bold; color:#475569;">格</span>
             </div>
             <div style="display:flex; gap:10px;">
-                <button class="move-btn" style="background-color:#10b981;" onclick="executeAdvancedMove('up')">
+                <button class="move-btn" style="background-color:#10b981;" data-on-click="executeAdvancedMove" data-args="[&quot;up&quot;]">
                     <i class="fas fa-arrow-up"></i> 往上移
                 </button>
-                <button class="move-btn" style="background-color:#ef4444;" onclick="executeAdvancedMove('down')">
+                <button class="move-btn" style="background-color:#ef4444;" data-on-click="executeAdvancedMove" data-args="[&quot;down&quot;]">
                     <i class="fas fa-arrow-down"></i> 往下移
                 </button>
             </div>
@@ -287,12 +287,12 @@
                 <input type="number" id="swap-idx-1" class="move-input" min="1" placeholder="編號">
                 <span>與</span>
                 <input type="number" id="swap-idx-2" class="move-input" min="1" placeholder="編號">
-                <button type="button" class="btn-swap move-swap-button" onclick="executeSwap()">互換</button>
+                <button type="button" class="btn-swap move-swap-button" data-on-click="executeSwap">互換</button>
             </div>
         </div>
 
         <div class="modal-actions">
-            <button class="btn-cancel" onclick="closeMoveModal()">關閉面板</button>
+            <button class="btn-cancel" data-on-click="closeMoveModal">關閉面板</button>
         </div>
     </div>
 </div>
@@ -302,12 +302,12 @@
         <h3 style="color:#6d28d9;"><i class="fas fa-clock-rotate-left"></i> 編輯歷史紀錄</h3>
         <div class="history-filter-bar">
             <label for="history-date" style="font-weight:bold; color:#475569;">查看日期：</label>
-            <input type="date" id="history-date" onchange="renderHistory()">
-            <button class="btn-image-import" type="button" onclick="setHistoryDateToday()">回到今天</button>
+            <input type="date" id="history-date" data-on-change="renderHistory">
+            <button class="btn-image-import" type="button" data-on-click="setHistoryDateToday">回到今天</button>
         </div>
         <div id="history-summary" class="history-summary"></div>
         <div id="history-list" class="history-list"></div>
-        <div class="modal-actions"><button class="btn-cancel" onclick="closeHistoryModal()">關閉</button></div>
+        <div class="modal-actions"><button class="btn-cancel" data-on-click="closeHistoryModal">關閉</button></div>
     </div>
 </div>
 
@@ -315,20 +315,20 @@
 <div class="modal-overlay" id="categoryOverviewModal">
     <div class="modal-content" style="max-width: 820px;">
         <div class="category-overview-top-actions">
-            <button type="button" class="btn-image-import" onclick="clearCategoryFilter(); closeCategoryOverviewModal();"><i class="fas fa-layer-group"></i> 顯示全部筆記</button>
+            <button type="button" class="btn-image-import" data-on-click="clearCategoryFilter closeCategoryOverviewModal"><i class="fas fa-layer-group"></i> 顯示全部筆記</button>
         </div>
         <div id="category-overview-grid" class="category-overview-grid"></div>
         <div class="category-manager">
             <div class="category-manager-label">建立／修改分類</div>
             <div class="category-quick-create">
                 <input id="category-manager-new-abbr" class="category-abbr-input" type="text" maxlength="4" placeholder="簡寫" title="左側直排顯示最多四個字；留白會自動使用分類名稱前四個字">
-                <input id="category-manager-new-name" type="text" maxlength="30" placeholder="輸入新分類名稱" onkeydown="if(event.key==='Enter'){event.preventDefault();createCategoryFromManager();}">
+                <input id="category-manager-new-name" type="text" maxlength="30" placeholder="輸入新分類名稱" data-on-keydown="createCategoryFromManager" data-key="Enter" data-prevent>
                 <input id="category-manager-new-color" type="color" value="#14b8a6" title="分類顏色">
-                <button type="button" class="btn-image-import" onclick="createCategoryFromManager()"><i class="fas fa-plus"></i> 新增分類</button>
+                <button type="button" class="btn-image-import" data-on-click="createCategoryFromManager"><i class="fas fa-plus"></i> 新增分類</button>
             </div>
             <div id="category-manager-list" style="margin-top:10px;"></div>
         </div>
-        <div class="modal-actions"><button class="btn-cancel" onclick="closeCategoryOverviewModal()">關閉</button></div>
+        <div class="modal-actions"><button class="btn-cancel" data-on-click="closeCategoryOverviewModal">關閉</button></div>
     </div>
 </div>
 
@@ -339,15 +339,15 @@
         <div id="category-assign-list" class="category-assign-list"></div>
 
         <div class="category-quick-create category-assign-quick-create">
-            <input id="category-assign-new-abbr" class="category-abbr-input" type="text" maxlength="4" placeholder="簡寫" title="左側直排顯示最多四個字；留白會自動使用分類名稱前四個字" onkeydown="handleCategoryAssignQuickCreateKeydown(event)">
-            <input id="category-assign-new-name" type="text" maxlength="30" placeholder="快速新增分類" onkeydown="handleCategoryAssignQuickCreateKeydown(event)">
+            <input id="category-assign-new-abbr" class="category-abbr-input" type="text" maxlength="4" placeholder="簡寫" title="左側直排顯示最多四個字；留白會自動使用分類名稱前四個字" data-on-keydown="handleCategoryAssignQuickCreateKeydown" data-args="[&quot;$event&quot;]">
+            <input id="category-assign-new-name" type="text" maxlength="30" placeholder="快速新增分類" data-on-keydown="handleCategoryAssignQuickCreateKeydown" data-args="[&quot;$event&quot;]">
             <input id="category-assign-new-color" type="color" value="#ec4899" title="分類顏色">
-            <button type="button" class="btn-image-import" onclick="saveCategoryAssignment()"><i class="fas fa-plus"></i> 建立並套用</button>
+            <button type="button" class="btn-image-import" data-on-click="saveCategoryAssignment"><i class="fas fa-plus"></i> 建立並套用</button>
         </div>
 
         <div class="modal-actions">
-            <button class="btn-cancel" onclick="closeCategoryAssignModal()">取消</button>
-            <button class="btn-save" onclick="saveCategoryAssignment()">套用分類</button>
+            <button class="btn-cancel" data-on-click="closeCategoryAssignModal">取消</button>
+            <button class="btn-save" data-on-click="saveCategoryAssignment">套用分類</button>
         </div>
     </div>
 </div>
@@ -357,11 +357,11 @@
         <h3 style="color:#4338ca;"><i class="fas fa-shuffle"></i> 隨機抽筆記</h3>
         <div style="color:#64748b; line-height:1.55;">抽出後會直接在主畫面顯示完整筆記，不會只顯示摘要，也不會另外放在小視窗裡。</div>
         <div class="random-settings">
-            <div class="random-setting-card"><label for="random-draw-count">抽幾則</label><input id="random-draw-count" type="number" min="1" max="50" value="1" oninput="updateRandomCandidateHint()"></div>
-            <div class="random-setting-card"><label for="random-draw-scope">抽取範圍</label><select id="random-draw-scope" onchange="updateRandomCandidateHint()"><option value="filtered">目前的搜尋／星號／分類結果</option><option value="all">全部筆記</option><option value="starred">只有星號筆記</option><option value="category">目前選取的分類</option></select></div>
+            <div class="random-setting-card"><label for="random-draw-count">抽幾則</label><input id="random-draw-count" type="number" min="1" max="50" value="1" data-on-input="updateRandomCandidateHint"></div>
+            <div class="random-setting-card"><label for="random-draw-scope">抽取範圍</label><select id="random-draw-scope" data-on-change="updateRandomCandidateHint"><option value="filtered">目前的搜尋／星號／分類結果</option><option value="all">全部筆記</option><option value="starred">只有星號筆記</option><option value="category">目前選取的分類</option></select></div>
         </div>
         <div id="random-candidate-hint" class="random-candidate-hint"></div>
-        <div class="modal-actions"><button class="btn-cancel" onclick="closeRandomDrawModal()">取消</button><button class="btn-save" onclick="performRandomDraw()"><i class="fas fa-shuffle"></i> 開始抽取</button></div>
+        <div class="modal-actions"><button class="btn-cancel" data-on-click="closeRandomDrawModal">取消</button><button class="btn-save" data-on-click="performRandomDraw"><i class="fas fa-shuffle"></i> 開始抽取</button></div>
     </div>
 </div>
 
@@ -372,9 +372,9 @@
     </div>
 </div>
 
-<script src="js/config.js?v=2026-11-16-pages-v10"></script>
-<script src="js/auth.js?v=2026-11-16-pages-v10"></script>
-<script src="js/drive-server.js?v=2026-11-16-pages-v10"></script>
-<script src="js/boot.js?v=2026-11-16-pages-v10"></script>
+<script src="js/config.js?v=2026-11-17-pages-v11"></script>
+<script src="js/auth.js?v=2026-11-17-pages-v11"></script>
+<script src="js/drive-server.js?v=2026-11-17-pages-v11"></script>
+<script src="js/boot.js?v=2026-11-17-pages-v11"></script>
 </body>
 </html>

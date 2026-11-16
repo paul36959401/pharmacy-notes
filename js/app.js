@@ -1675,6 +1675,74 @@ const noteClipboardContent=(()=>{
     return {html,text};
 })();
 
+/* Source: 07-actions.js */
+/* Buttons in the HTML name the function they run instead of carrying inline JavaScript:
+ *   <button data-on-click="deleteNote" data-args='["123"]' data-stop>
+ * Each element gets its own listener (not one shared page listener), so stopPropagation
+ * and preventDefault behave exactly as the old inline onclick="..." did.
+ *   data-on-<click|mousedown|input|change|keydown>  function name(s), space separated
+ *   data-args   JSON array; "$event" is replaced by the event
+ *   data-stop   event.stopPropagation()   data-prevent   event.preventDefault()
+ *   data-key    only for this key (keydown) */
+const noteActions = (() => {
+    'use strict';
+    const EVENTS = ['click', 'mousedown', 'input', 'change', 'keydown'];
+    const bound = new WeakMap(), cache = new Map();
+    const resolve = name => {
+        if (!cache.has(name)) {
+            // Function() runs in global scope, so it also finds top-level const/let objects.
+            let fn = null, owner = null;
+            try {
+                const path = name.split('.');
+                owner = path.length > 1 ? Function('return ' + path.slice(0, -1).join('.'))() : null;
+                fn = path.length > 1 ? owner?.[path.at(-1)] : Function('return typeof ' + name + "==='function'?" + name + ':null')();
+            } catch (_) {fn = null;}
+            cache.set(name, fn ? {fn, owner} : null);
+        }
+        return cache.get(name);
+    };
+    function run(element, type, event) {
+        const names = element.getAttribute('data-on-' + type);
+        if (!names) return;
+        const key = element.dataset.key;
+        if (key && event.key !== key) return;
+        if (element.hasAttribute('data-prevent')) event.preventDefault();
+        if (element.hasAttribute('data-stop')) event.stopPropagation();
+        let args = [];
+        if (element.dataset.args) {
+            try {args = JSON.parse(element.dataset.args).map(a => a === '$event' ? event : a);}
+            catch (_) {console.error('動作參數格式不正確：', element.dataset.args); return;}
+        }
+        for (const name of names.trim().split(/\s+/)) {
+            const target = resolve(name);
+            if (!target) {console.error('找不到動作：', name); continue;}
+            target.fn.apply(target.owner, args);
+        }
+    }
+    function bind(element) {
+        let done = bound.get(element);
+        for (const type of EVENTS) {
+            if (!element.hasAttribute('data-on-' + type) || done?.has(type)) continue;
+            element.addEventListener(type, event => run(element, type, event));
+            if (!done) {done = new Set(); bound.set(element, done);}
+            done.add(type);
+        }
+    }
+    const selector = EVENTS.map(type => '[data-on-' + type + ']').join(',');
+    function scan(root) {
+        if (root.nodeType !== 1) return;
+        if (root.matches(selector)) bind(root);
+        root.querySelectorAll(selector).forEach(bind);
+    }
+    scan(document.body);
+    new MutationObserver(records => {
+        for (const record of records) {
+            if (record.type === 'attributes') bind(record.target);
+            else record.addedNodes.forEach(scan);
+        }
+    }).observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: EVENTS.map(type => 'data-on-' + type)});
+    return {scan};
+})();
 /* Source: 10-notes-and-filters.js */
     function setSyncStatus(status, message = '') {
         const dot = document.getElementById('status-dot'), label = document.getElementById('status-text');
@@ -2363,7 +2431,7 @@ const noteClipboardContent=(()=>{
         } else {
             grid.innerHTML = categoryDefinitions.map(category => {
                 const count = notesData.filter(note => getNoteCategoryIds(note).includes(category.id)).length;
-                return `<button type="button" class="category-overview-card ${activeCategoryFilterId === category.id ? 'active' : ''}" onclick="applyCategoryFilter(${inlineJsArgument(category.id)})">
+                return `<button type="button" class="category-overview-card ${activeCategoryFilterId === category.id ? 'active' : ''}" data-on-click="applyCategoryFilter" data-args="[${inlineJsArgument(category.id)}]">
                     <div class="category-card-color" style="background:${escapeAttribute(category.color)}"></div>
                     <div class="category-card-main">
                         <span class="category-card-abbr" style="background:${escapeAttribute(category.color)};color:${categoryTextColor(category.color)}">${escapeHtml(categoryDisplayAbbr(category))}</span>
@@ -2380,8 +2448,8 @@ const noteClipboardContent=(()=>{
                 <input type="color" id="category-color-${escapeAttribute(category.id)}" value="${escapeAttribute(category.color)}" title="調整顏色">
                 <input class="category-abbr-input" type="text" id="category-abbr-${escapeAttribute(category.id)}" value="${escapeAttribute(category.abbr)}" maxlength="4" title="左側直排顯示最多四個字">
                 <input type="text" id="category-name-${escapeAttribute(category.id)}" value="${escapeAttribute(category.name)}" maxlength="30" title="完整分類名稱">
-                <button type="button" class="btn-category-save" onclick="updateCategoryDefinition(${inlineJsArgument(category.id)})">儲存</button>
-                <button type="button" class="btn-category-delete" onclick="deleteCategoryDefinition(${inlineJsArgument(category.id)})">刪除</button>
+                <button type="button" class="btn-category-save" data-on-click="updateCategoryDefinition" data-args="[${inlineJsArgument(category.id)}]">儲存</button>
+                <button type="button" class="btn-category-delete" data-on-click="deleteCategoryDefinition" data-args="[${inlineJsArgument(category.id)}]">刪除</button>
             </div>`).join('') : '<div class="category-empty-hint">建立後可在這裡改名、換顏色或刪除。</div>';
     }
 
@@ -2476,7 +2544,7 @@ const noteClipboardContent=(()=>{
         picker.innerHTML = categoryDefinitions.map(category => categoryChipHtml(
             category,
             pendingCategoryIds.includes(category.id) ? 'selected' : '',
-            `onclick="togglePendingCategory(${inlineJsArgument(category.id)})" title="點擊勾選／取消"`
+            `data-on-click="togglePendingCategory" data-args="[${inlineJsArgument(category.id)}]" title="點擊勾選／取消"`
         )).join('');
     }
 
@@ -2545,12 +2613,12 @@ const noteClipboardContent=(()=>{
             if (categoryAssignEditingId === category.id) {
                 return `<div class="category-assign-row editing" data-category-id="${categoryId}">
                     <input type="color" id="assign-category-color-${categoryId}" value="${escapeAttribute(category.color)}" title="分類顏色">
-                    <input class="category-abbr-input" type="text" id="assign-category-abbr-${categoryId}" value="${escapeAttribute(category.abbr)}" maxlength="4" title="左側直排顯示最多四個字" onkeydown="handleAssignCategoryEditKeydown(event, ${inlineJsArgument(category.id)})">
-                    <input type="text" id="assign-category-name-${categoryId}" value="${escapeAttribute(category.name)}" maxlength="30" title="完整分類名稱" onkeydown="handleAssignCategoryEditKeydown(event, ${inlineJsArgument(category.id)})">
+                    <input class="category-abbr-input" type="text" id="assign-category-abbr-${categoryId}" value="${escapeAttribute(category.abbr)}" maxlength="4" title="左側直排顯示最多四個字" data-on-keydown="handleAssignCategoryEditKeydown" data-args="[&quot;$event&quot;,${inlineJsArgument(category.id)}]">
+                    <input type="text" id="assign-category-name-${categoryId}" value="${escapeAttribute(category.name)}" maxlength="30" title="完整分類名稱" data-on-keydown="handleAssignCategoryEditKeydown" data-args="[&quot;$event&quot;,${inlineJsArgument(category.id)}]">
                     <div class="category-assign-edit-actions">
-                        <button type="button" class="category-assign-edit-save" onclick="saveCategoryEditFromAssignModal(${inlineJsArgument(category.id)})">儲存</button>
-                        <button type="button" class="category-assign-edit-cancel" onclick="cancelCategoryEditFromAssignModal()">取消</button>
-                        <button type="button" class="category-assign-edit-delete" onclick="deleteCategoryFromAssignModal(${inlineJsArgument(category.id)})">刪除</button>
+                        <button type="button" class="category-assign-edit-save" data-on-click="saveCategoryEditFromAssignModal" data-args="[${inlineJsArgument(category.id)}]">儲存</button>
+                        <button type="button" class="category-assign-edit-cancel" data-on-click="cancelCategoryEditFromAssignModal">取消</button>
+                        <button type="button" class="category-assign-edit-delete" data-on-click="deleteCategoryFromAssignModal" data-args="[${inlineJsArgument(category.id)}]">刪除</button>
                     </div>
                 </div>`;
             }
@@ -2560,11 +2628,11 @@ const noteClipboardContent=(()=>{
                 ${categoryChipHtml(
                     category,
                     selected ? 'selected' : '',
-                    `onclick="toggleAssignCategory(${inlineJsArgument(category.id)})" title="點擊勾選／取消"`
+                    `data-on-click="toggleAssignCategory" data-args="[${inlineJsArgument(category.id)}]" title="點擊勾選／取消"`
                 )}
                 <div class="category-assign-row-actions">
-                    <button type="button" class="category-assign-icon-button" onclick="beginCategoryEditFromAssignModal(${inlineJsArgument(category.id)})" title="編輯分類" aria-label="編輯分類"><i class="fas fa-pen"></i></button>
-                    <button type="button" class="category-assign-icon-button delete" onclick="deleteCategoryFromAssignModal(${inlineJsArgument(category.id)})" title="刪除分類" aria-label="刪除分類"><i class="fas fa-trash"></i></button>
+                    <button type="button" class="category-assign-icon-button" data-on-click="beginCategoryEditFromAssignModal" data-args="[${inlineJsArgument(category.id)}]" title="編輯分類" aria-label="編輯分類"><i class="fas fa-pen"></i></button>
+                    <button type="button" class="category-assign-icon-button delete" data-on-click="deleteCategoryFromAssignModal" data-args="[${inlineJsArgument(category.id)}]" title="刪除分類" aria-label="刪除分類"><i class="fas fa-trash"></i></button>
                 </div>
             </div>`;
         }).join('');
@@ -2808,7 +2876,7 @@ const noteClipboardContent=(()=>{
                     </div>
                     <div class="history-preview">${escapeHtml(record.preview || '（無文字預覽）')}</div>
                     ${record.detail ? `<div class="history-detail">變更：${escapeHtml(record.detail)}</div>` : ''}
-                    ${stillExists ? `<button class="btn-locate-note" onclick="locateHistoryNote(${inlineJsArgument(record.noteId)})"><i class="fas fa-location-crosshairs"></i> 定位筆記</button>` : '<div class="history-detail">此筆記目前已被刪除</div>'}
+                    ${stillExists ? `<button class="btn-locate-note" data-on-click="locateHistoryNote" data-args="[${inlineJsArgument(record.noteId)}]"><i class="fas fa-location-crosshairs"></i> 定位筆記</button>` : '<div class="history-detail">此筆記目前已被刪除</div>'}
                 </div>`;
         }).join('');
     }
@@ -3122,7 +3190,7 @@ const noteClipboardContent=(()=>{
                         style="background:${escapeAttribute(category.color)};color:${categoryTextColor(category.color)}"
                         title="${escapeAttribute(category.name)}｜點擊只顯示此分類"
                         aria-label="${escapeAttribute(category.name)}"
-                        onclick="event.stopPropagation(); applyCategoryFilter(${inlineJsArgument(category.id)})"
+                        data-on-click="applyCategoryFilter" data-args="[${inlineJsArgument(category.id)}]" data-stop
                     >${categoryVerticalLabelHtml(category)}</button>
                 `)
                 .join('');
@@ -3130,7 +3198,7 @@ const noteClipboardContent=(()=>{
             item.innerHTML = `
                 <div class="note-number-container">
                     <div class="note-star-number-row">
-                        <button type="button" class="note-star-button" data-note-star="${escapeAttribute(note.id)}" aria-label="${note.starred?'取消最愛':'加入最愛'}" aria-pressed="${!!note.starred}" onclick="toggleStar(${inlineJsArgument(note.id)})">
+                        <button type="button" class="note-star-button" data-note-star="${escapeAttribute(note.id)}" aria-label="${note.starred?'取消最愛':'加入最愛'}" aria-pressed="${!!note.starred}" data-on-click="toggleStar" data-args="[${inlineJsArgument(note.id)}]">
                             <svg viewBox="0 0 24 24" fill="${note.starred?'currentColor':'none'}" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.5 4.4 1.1 6.2-5.7-3-5.7 3 1.1-6.2-4.5-4.4 6.3-.9L12 3Z"/></svg>
                         </button>
                         <div class="note-number">${absoluteIndex + 1}.</div>
@@ -3139,7 +3207,7 @@ const noteClipboardContent=(()=>{
                     <button
                         type="button"
                         class="note-category-add"
-                        onclick="event.stopPropagation(); openNoteCategoryModal(${inlineJsArgument(note.id)})"
+                        data-on-click="openNoteCategoryModal" data-args="[${inlineJsArgument(note.id)}]" data-stop
                         title="${noteCategories.length ? '修改分類' : '新增分類'}"
                         aria-label="${noteCategories.length ? '修改分類' : '新增分類'}"
                     >
@@ -3164,7 +3232,7 @@ const noteClipboardContent=(()=>{
                 <div class="note-actions">
                     <button
                         class="btn-delete"
-                        onclick="event.stopPropagation(); deleteNote(${inlineJsArgument(note.id)})"
+                        data-on-click="deleteNote" data-args="[${inlineJsArgument(note.id)}]" data-stop
                         title="移到垃圾桶（30 天內可還原）"
                         aria-label="將這則筆記移到垃圾桶"
                     >
@@ -3228,7 +3296,7 @@ const noteClipboardContent=(()=>{
 
                 <div
                     class="preview-image-box"
-                    onclick="openGalleryImageViewer(${index})"
+                    data-on-click="openGalleryImageViewer" data-args="[${index}]"
                     title="點一下放大；按住圖片可拖曳排序"
                 >
                     <img
@@ -3245,11 +3313,11 @@ const noteClipboardContent=(()=>{
                 </div>
 
                 <div class="preview-actions">
-                    <button type="button" class="btn-preview-edit" onclick="noteImageEditor.open({gallery:${index}})">編輯／標記</button>
+                    <button type="button" class="btn-preview-edit" data-on-click="noteImageEditor.open" data-args="[{&quot;gallery&quot;:${index}}]">編輯／標記</button>
                     <button
                         type="button"
                         class="btn-preview-insert"
-                        onclick="moveGalleryImageInline(${index})"
+                        data-on-click="moveGalleryImageInline" data-args="[${index}]"
                     >
                         <i class="fas fa-arrow-up"></i> 移入文字
                     </button>
@@ -3257,7 +3325,7 @@ const noteClipboardContent=(()=>{
                     <button
                         type="button"
                         class="btn-preview-remove"
-                        onclick="removeSingleImage(${index})"
+                        data-on-click="removeSingleImage" data-args="[${index}]"
                     >
                         <i class="fas fa-trash"></i> 移除
                     </button>
@@ -6922,7 +6990,8 @@ function initializeDriveWorkspace(){
 
 /* Pagination only changes the rendered slice. Every record stays in notesData and cloud storage. */
 const noteBrowse=(()=>{
-    const allowed=new Set([0,1,3,5,10,20]);
+    const allowed=new Set([-1,0,1,3,5,10,20]);   // -1 = 捲動載入 (load more while scrolling)
+    const STEP=20;let infinite=false,loaded=STEP,loadObserver=null;
     let size=5,page=0,items=[],lastContext=null,pendingId=null,restored=false,initialized=false,saved={},storageKey='',printState=null,hold=null,scrollFrame=0,composing=false,scrollHold=null;
     const consumedClicks=new WeakMap();
     const el=id=>document.getElementById(id);
@@ -6931,17 +7000,18 @@ const noteBrowse=(()=>{
     const pageCount=()=>size?Math.max(1,Math.ceil(items.length/size)):1;
     const message=text=>{el('note-reader-message').textContent=text;el('note-reader-message').hidden=!text;};
     function remember(){
-        saved={...saved,size};
-        if(lastContext===normalContext()&&items.length)saved={size,page,anchorId:String(items[size?page*size:0]?.id??'')};
+        saved={...saved,size:infinite?-1:size};
+        if(lastContext===normalContext()&&items.length)saved={size:infinite?-1:size,page,anchorId:String(items[size?page*size:0]?.id??'')};
         try{localStorage.setItem(storageKey,JSON.stringify(saved));}catch(_){}
     }
     function update(){
-        const count=pageCount(),start=items.length?(size?page*size+1:1):0,end=size?Math.min(items.length,(page+1)*size):items.length;
+        const count=pageCount(),start=items.length?(size?page*size+1:1):0,end=size?Math.min(items.length,(page+1)*size):infinite?Math.min(items.length,loaded):items.length;
         const filtered=lastContext!==null&&lastContext!==normalContext();
         const summary=lastContext===null?'正在讀取…':(filtered?'篩選 ':'')+start+'–'+end+'／'+items.length+' 則';
         el('note-page-summary').textContent=summary;el('note-page-summary').setAttribute('aria-live',hold?'off':'polite');
         el('note-page-size').title=summary+'；調整每頁筆記數';
-        el('note-page-size').value=String(size);el('note-page-total').textContent='／'+count+' 頁';
+        el('note-page-size').value=String(infinite?-1:size);el('note-page-total').textContent='／'+count+' 頁';
+        const more=el('note-load-more');if(more){more.hidden=!infinite||end>=items.length;more.textContent='往下捲載入更多（已顯示 '+end+'／'+items.length+' 則）';}
         if(document.activeElement!==el('note-page-input'))el('note-page-input').value=String(page+1);
         el('note-page-input').disabled=!size||count<=1;
         el('note-page-first').disabled=el('note-page-prev').disabled=el('note-side-prev').disabled=page===0;
@@ -6954,7 +7024,7 @@ const noteBrowse=(()=>{
     function select(list){
         if(printState)return list;
         const nextContext=context();
-        if(lastContext!==null&&lastContext!==nextContext){page=0;message('');}
+        if(lastContext!==null&&lastContext!==nextContext){page=0;loaded=STEP;message('');}
         lastContext=nextContext;items=list;
         if(!restored&&list.length){
             if(lastContext===normalContext()){
@@ -6963,9 +7033,9 @@ const noteBrowse=(()=>{
             }
             restored=true;
         }
-        if(pendingId!==null){const index=list.findIndex(note=>String(note.id)===pendingId);if(index>=0)page=size?Math.floor(index/size):0;pendingId=null;}
+        if(pendingId!==null){const index=list.findIndex(note=>String(note.id)===pendingId);if(index>=0){page=size?Math.floor(index/size):0;if(infinite)loaded=Math.max(loaded,index+5);}pendingId=null;}
         page=Math.max(0,Math.min(page,pageCount()-1));update();
-        return size?list.slice(page*size,(page+1)*size):list;
+        return size?list.slice(page*size,(page+1)*size):infinite?list.slice(0,loaded):list;
     }
     function scrollToStart(){
         cancelAnimationFrame(scrollFrame);scrollFrame=requestAnimationFrame(()=>{
@@ -7077,15 +7147,27 @@ const noteBrowse=(()=>{
     function requestReveal(id){pendingId=String(id);}
     function reveal(id){
         const index=items.findIndex(note=>String(note.id)===String(id));if(index<0)return false;
+        if(infinite&&index>=loaded){loaded=index+5;renderNotes(items);return true;}
         const next=size?Math.floor(index/size):0;if(next!==page){page=next;renderNotes(items);remember();}
         return true;
+    }
+    /* 捲動載入: a marker under the list; when it comes near the screen, show 20 more notes. */
+    function setupLoadMore(){
+        const list=el('note-list');if(!list||el('note-load-more'))return;
+        const more=document.createElement('div');more.id='note-load-more';more.className='note-load-more';more.hidden=true;more.setAttribute('role','status');
+        list.after(more);
+        const grow=()=>{if(!infinite||loaded>=items.length||document.querySelector('.container').inert)return;loaded+=STEP;filterNotes({background:true});
+            requestAnimationFrame(()=>{if(!more.hidden&&more.getBoundingClientRect().top<innerHeight+800)grow();});};
+        more.addEventListener('click',grow);
+        if(typeof IntersectionObserver==='function'){loadObserver=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting))grow();},{rootMargin:'0px 0px 800px 0px'});loadObserver.observe(more);}
     }
     function integer(value){const text=String(value).normalize('NFKC').trim(),n=Number(text);return /^[0-9]+$/.test(text)&&Number.isSafeInteger(n)&&n>0?n:null;}
     function initialize(){
         if(initialized)return;initialized=true;
         let hash=2166136261;for(const c of (noteDriveBoot.workspace||noteDriveBoot.appUrl||SCRIPT_URL))hash=Math.imul(hash^c.charCodeAt(0),16777619);
         storageKey='pharmacy-note-reading-v1-'+noteDriveBoot.book+'-'+(hash>>>0).toString(36);
-        try{saved=JSON.parse(localStorage.getItem(storageKey)||'{}')||{};if(allowed.has(saved.size))size=saved.size;}catch(_){saved={};}
+        try{saved=JSON.parse(localStorage.getItem(storageKey)||'{}')||{};if(allowed.has(saved.size)){infinite=saved.size===-1;size=infinite?0:saved.size;}}catch(_){saved={};}
+        setupLoadMore();
         const search=el('search-input');search.enterKeyHint='search';
         search.addEventListener('keydown',event=>{
             if(event.key!=='Enter'||event.repeat||event.isComposing||composing||(event.keyCode||event.which)===229||event.altKey||event.ctrlKey||event.metaKey)return;
@@ -7098,7 +7180,7 @@ const noteBrowse=(()=>{
         el('note-page-size').addEventListener('change',()=>{
             stopReadingMotion();
             const anchor=items[size?page*size:0]?.id,value=Number(el('note-page-size').value);if(!allowed.has(value))return;
-            size=value;page=0;if(anchor!=null)requestReveal(anchor);savedNoteFocusSession++;filterNotes();remember();
+            infinite=value===-1;size=infinite?0:value;page=0;loaded=STEP;if(anchor!=null)requestReveal(anchor);savedNoteFocusSession++;filterNotes();remember();
             if(anchor!=null)focusSavedNoteAfterSave(anchor);else scrollToStart();
         });
         el('note-page-first').onclick=()=>{stopReadingMotion();go(0);};el('note-page-last').onclick=()=>{stopReadingMotion();go(pageCount()-1);};
