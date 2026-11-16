@@ -53,7 +53,7 @@ const noteImageStorage = (() => {
                 src = await noteExternalImages.resolve(src,{signal});
             }
             const image = new Image(); image.decoding = 'async'; image.src = src;
-            await image.decode();
+            await noteImageReady(image);
             if (!image.naturalWidth || !image.naturalHeight) throw new Error('圖片尺寸無效');
             const probe = document.createElement('canvas'); probe.width = probe.height = 1;
             probe.getContext('2d').drawImage(image, 0, 0, 1, 1); probe.toDataURL();
@@ -121,7 +121,7 @@ const noteImageStorage = (() => {
                     if (!blob || blob.type !== 'image/webp') return source;
                     const candidate = await readBlob(blob);
                     if (candidate.length >= source.length * .97) return source;
-                    const check = new Image(); check.src = candidate; await check.decode();
+                    const check = new Image(); check.src = candidate; await noteImageReady(check);
                     if (check.naturalWidth !== canvas.width || check.naturalHeight !== canvas.height) return source;
                     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(check, 0, 0);
                     const verified = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -148,7 +148,7 @@ const noteImageStorage = (() => {
             const xml = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${g.w} ${g.h}" overflow="hidden"><g transform="matrix(${g.m.join(' ')})"><image id="note-image-source" width="${scene.w}" height="${scene.h}" href="NOTE_SOURCE_DATA"/></g>${marks?`<image width="${g.w}" height="${g.h}" href="NOTE_MARKS_DATA"/>`:''}</svg>`;
             const src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml).replace('NOTE_SOURCE_DATA', encodedImageAttribute(stored)).replace('NOTE_MARKS_DATA', encodedImageAttribute(marks));
             // 套用前確認瀏覽器真的能顯示，失敗時保留原筆記與編輯視窗。
-            const check = new Image(); check.src = src; await check.decode();
+            const check = new Image(); check.src = src; await noteImageReady(check);
             cacheSource(src, stored);
             return { src, metadata: { v: 3, sourceKey: scene.originalKey || sourceKey(scene.original), storedKey: sourceKey(stored), w:scene.w, h:scene.h, ...(plain?{plain:true}:{}), doc: copy(scene.doc) } };
         }

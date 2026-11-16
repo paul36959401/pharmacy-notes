@@ -1,4 +1,16 @@
 /* Source: 05-content-safety.js */
+/* Waits until an <img> has loaded. Used instead of noteImageReady(image), which can hang
+   forever for off-screen images in some browsers (seen in the Claude desktop browser). */
+function noteImageReady(image, ms = 20000) {
+    if (image.complete && image.naturalWidth) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+        const clear = () => {clearTimeout(timer); image.removeEventListener('load', done); image.removeEventListener('error', fail);};
+        const done = () => {clear(); resolve();};
+        const fail = () => {clear(); reject(new Error('圖片無法讀取'));};
+        const timer = setTimeout(() => {clear(); image.naturalWidth ? resolve() : reject(new Error('圖片讀取逾時'));}, ms);
+        image.addEventListener('load', done); image.addEventListener('error', fail);
+    });
+}
 /* Shared boundary for note HTML, pasted content and imported image URLs. */
 const NOTE_RECOVERY_ID = '__NOTE_RECOVERY_V1__';
 const noteSafeContent = (() => {

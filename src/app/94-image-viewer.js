@@ -48,7 +48,7 @@ const noteImageViewer=(()=>{
             const full=await Promise.race([(async()=>notePersistence.resolveEditorValue(typeof source==='function'?await source():source))(),cancelled,timeout]);
             if(active!==s)return;if(fromEditor&&(editorRequest!==noteOpenRequest||!el('noteModal').classList.contains('active'))){close();return;}if(!full)throw Error('這張原圖目前無法讀取，請稍後重試');
             let size=lastSource===full&&image.complete&&image.naturalWidth?lastSize:null;
-            if(!size){const decoded=new Image();decoded.decoding='async';decoded.src=full;await Promise.race([decoded.decode(),cancelled,timeout]);size={w:decoded.naturalWidth,h:decoded.naturalHeight};}
+            if(!size){const decoded=new Image();decoded.decoding='async';decoded.src=full;await Promise.race([noteImageReady(decoded),cancelled,timeout]);size={w:decoded.naturalWidth,h:decoded.naturalHeight};}
             if(active!==s)return;if(fromEditor&&(editorRequest!==noteOpenRequest||!el('noteModal').classList.contains('active'))){close();return;}if(!size?.w||!size?.h)throw Error('圖片尺寸無效');if(lastSource!==full)image.src=full;lastSource=full;lastSize=size;s.w=size.w;s.h=size.h;s.ready=true;image.style.width=s.w+'px';image.style.height=s.h+'px';image.hidden=false;message('');root.removeAttribute('aria-busy');fit();
         }catch(error){if(active===s){root.removeAttribute('aria-busy');message(error.message+'；筆記與原圖仍保留。');}}
         finally{clearTimeout(timer);if(abort)s.abort.signal.removeEventListener('abort',abort);}

@@ -358,7 +358,7 @@
                 image.classList.remove('cloud-image-error');
                 try{
                     const source=await chunkCloud.ensurePreview(id,{priority});
-                    const decoded=new Image();decoded.src=source;await decoded.decode();
+                    const decoded=new Image();decoded.src=source;await noteImageReady(decoded);
                     if(image.isConnected&&generation===imageGeneration&&imageId(image)===id){
                         const size=readerImageSize(image,id)||{width:decoded.naturalWidth,height:decoded.naturalHeight};
                         const changed=imageSlotChanged(image,size);

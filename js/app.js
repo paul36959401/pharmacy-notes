@@ -1488,6 +1488,18 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
 
 
 /* Source: 05-content-safety.js */
+/* Waits until an <img> has loaded. Used instead of noteImageReady(image), which can hang
+   forever for off-screen images in some browsers (seen in the Claude desktop browser). */
+function noteImageReady(image, ms = 20000) {
+    if (image.complete && image.naturalWidth) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+        const clear = () => {clearTimeout(timer); image.removeEventListener('load', done); image.removeEventListener('error', fail);};
+        const done = () => {clear(); resolve();};
+        const fail = () => {clear(); reject(new Error('圖片無法讀取'));};
+        const timer = setTimeout(() => {clear(); image.naturalWidth ? resolve() : reject(new Error('圖片讀取逾時'));}, ms);
+        image.addEventListener('load', done); image.addEventListener('error', fail);
+    });
+}
 /* Shared boundary for note HTML, pasted content and imported image URLs. */
 const NOTE_RECOVERY_ID = '__NOTE_RECOVERY_V1__';
 const noteSafeContent = (() => {
@@ -5811,7 +5823,7 @@ function createNoteDriveCloud(options){
         if(!/^data:image\//i.test(value))return null;
         const image=new Image();image.src=value;
         try{
-            await image.decode();
+            await noteImageReady(image);
             const scale=Math.min(1,1280/image.naturalWidth,4096/image.naturalHeight,Math.sqrt(3000000/(image.naturalWidth*image.naturalHeight)));
             const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
             canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
@@ -6381,7 +6393,7 @@ function createNoteChunkCloud(options){return createNoteDriveCloud(options);}
                 image.classList.remove('cloud-image-error');
                 try{
                     const source=await chunkCloud.ensurePreview(id,{priority});
-                    const decoded=new Image();decoded.src=source;await decoded.decode();
+                    const decoded=new Image();decoded.src=source;await noteImageReady(decoded);
                     if(image.isConnected&&generation===imageGeneration&&imageId(image)===id){
                         const size=readerImageSize(image,id)||{width:decoded.naturalWidth,height:decoded.naturalHeight};
                         const changed=imageSlotChanged(image,size);
@@ -7343,7 +7355,7 @@ const noteImageSearch=(()=>{
         const d=item.descriptor;
         if(d.kind==='data-url'&&['image/jpeg','image/png','image/gif','image/bmp'].includes(d.file.mime)&&d.file.bytes<=2000000)return {index:0,total:1};
         if(renderCache?.key!==d.file.key){
-            const source=await window.noteDriveCloud.ensureAsset(item.id,undefined,20),image=new Image();image.src=source;await image.decode();
+            const source=await window.noteDriveCloud.ensureAsset(item.id,undefined,20),image=new Image();image.src=source;await noteImageReady(image);
             const cols=Math.max(1,Math.ceil((image.naturalWidth-64)/1936)),rows=Math.max(1,Math.ceil((image.naturalHeight-64)/1936));
             if(cols*rows>64)throw new Error('這張圖片過長，暫時無法建立完整文字索引；原圖仍可閱讀與編輯。');
             if(renderCache)renderCache.image.src='';renderCache={key:d.file.key,image,cols,rows};
@@ -7883,7 +7895,7 @@ const noteImageStorage = (() => {
                 src = await noteExternalImages.resolve(src,{signal});
             }
             const image = new Image(); image.decoding = 'async'; image.src = src;
-            await image.decode();
+            await noteImageReady(image);
             if (!image.naturalWidth || !image.naturalHeight) throw new Error('圖片尺寸無效');
             const probe = document.createElement('canvas'); probe.width = probe.height = 1;
             probe.getContext('2d').drawImage(image, 0, 0, 1, 1); probe.toDataURL();
@@ -7951,7 +7963,7 @@ const noteImageStorage = (() => {
                     if (!blob || blob.type !== 'image/webp') return source;
                     const candidate = await readBlob(blob);
                     if (candidate.length >= source.length * .97) return source;
-                    const check = new Image(); check.src = candidate; await check.decode();
+                    const check = new Image(); check.src = candidate; await noteImageReady(check);
                     if (check.naturalWidth !== canvas.width || check.naturalHeight !== canvas.height) return source;
                     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(check, 0, 0);
                     const verified = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -7978,7 +7990,7 @@ const noteImageStorage = (() => {
             const xml = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${g.w} ${g.h}" overflow="hidden"><g transform="matrix(${g.m.join(' ')})"><image id="note-image-source" width="${scene.w}" height="${scene.h}" href="NOTE_SOURCE_DATA"/></g>${marks?`<image width="${g.w}" height="${g.h}" href="NOTE_MARKS_DATA"/>`:''}</svg>`;
             const src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml).replace('NOTE_SOURCE_DATA', encodedImageAttribute(stored)).replace('NOTE_MARKS_DATA', encodedImageAttribute(marks));
             // 套用前確認瀏覽器真的能顯示，失敗時保留原筆記與編輯視窗。
-            const check = new Image(); check.src = src; await check.decode();
+            const check = new Image(); check.src = src; await noteImageReady(check);
             cacheSource(src, stored);
             return { src, metadata: { v: 3, sourceKey: scene.originalKey || sourceKey(scene.original), storedKey: sourceKey(stored), w:scene.w, h:scene.h, ...(plain?{plain:true}:{}), doc: copy(scene.doc) } };
         }
@@ -8286,7 +8298,7 @@ const noteImageStudio = (() => {
             if(!/^https?:|^blob:/i.test(src||''))throw Error('圖片網址無效');
             src=await noteExternalImages.resolve(src,{signal});
         }
-        const image=new Image();image.decoding='async';image.src=src;await image.decode();if(signal?.aborted)throw Error('已停止圖片載入');
+        const image=new Image();image.decoding='async';image.src=src;await noteImageReady(image);if(signal?.aborted)throw Error('已停止圖片載入');
         if(!image.naturalWidth||!image.naturalHeight)throw Error('圖片尺寸無效');
         const canvas=document.createElement('canvas');canvas.width=canvas.height=1;canvas.getContext('2d').drawImage(image,0,0,1,1);canvas.toDataURL();return {src,image};
     }
@@ -8754,7 +8766,7 @@ const noteImageStudio = (() => {
     }
     async function packageImage(){
         const s=session,d=packagedDoc(),g=M.geometry(d),scale=Math.min(1,4096/Math.max(g.w,g.h),Math.sqrt(12000000/(g.w*g.h))),src=M.dataUrl(d,s.sources,scale);
-        const image=new Image();image.src=src;await image.decode();if(session!==s)throw Error('圖片編輯已取消');
+        const image=new Image();image.src=src;await noteImageReady(image);if(session!==s)throw Error('圖片編輯已取消');
         return {src,metadata:{v:4,sourceKey:s.originalKey,storedKey:noteImageStorage.sourceKey(s.original),w:s.w,h:s.h,doc:d}};
     }
     async function apply(){
@@ -8774,7 +8786,7 @@ const noteImageStudio = (() => {
     async function exportImage(type){
         const s=session;if(!s?.ready||s.busy)return;finishText();s.busy=true;update();
         try{
-            const d=packagedDoc(),g=M.geometry(d),requested=Number(el('studio-export-scale').value)||1,scale=Math.min(requested,4096/Math.max(g.w,g.h),Math.sqrt(12000000/(g.w*g.h))),image=new Image();image.src=M.dataUrl(d,s.sources,scale);await image.decode();if(session!==s)return;
+            const d=packagedDoc(),g=M.geometry(d),requested=Number(el('studio-export-scale').value)||1,scale=Math.min(requested,4096/Math.max(g.w,g.h),Math.sqrt(12000000/(g.w*g.h))),image=new Image();image.src=M.dataUrl(d,s.sources,scale);await noteImageReady(image);if(session!==s)return;
             const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(g.w*scale));canvas.height=Math.max(1,Math.round(g.h*scale));const ctx=canvas.getContext('2d');if(type==='jpg'){ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);}ctx.drawImage(image,0,0,canvas.width,canvas.height);
             const blob=await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(Error('無法產生輸出檔案')),type==='jpg'?'image/jpeg':'image/png',.95));if(session!==s)return;
             const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='筆記圖片-'+Date.now()+'.'+type;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);message(`已匯出 ${canvas.width} × ${canvas.height} ${type.toUpperCase()}；原圖與標記仍保留。`);canvas.width=canvas.height=1;
@@ -8867,7 +8879,7 @@ const noteImageViewer=(()=>{
             const full=await Promise.race([(async()=>notePersistence.resolveEditorValue(typeof source==='function'?await source():source))(),cancelled,timeout]);
             if(active!==s)return;if(fromEditor&&(editorRequest!==noteOpenRequest||!el('noteModal').classList.contains('active'))){close();return;}if(!full)throw Error('這張原圖目前無法讀取，請稍後重試');
             let size=lastSource===full&&image.complete&&image.naturalWidth?lastSize:null;
-            if(!size){const decoded=new Image();decoded.decoding='async';decoded.src=full;await Promise.race([decoded.decode(),cancelled,timeout]);size={w:decoded.naturalWidth,h:decoded.naturalHeight};}
+            if(!size){const decoded=new Image();decoded.decoding='async';decoded.src=full;await Promise.race([noteImageReady(decoded),cancelled,timeout]);size={w:decoded.naturalWidth,h:decoded.naturalHeight};}
             if(active!==s)return;if(fromEditor&&(editorRequest!==noteOpenRequest||!el('noteModal').classList.contains('active'))){close();return;}if(!size?.w||!size?.h)throw Error('圖片尺寸無效');if(lastSource!==full)image.src=full;lastSource=full;lastSize=size;s.w=size.w;s.h=size.h;s.ready=true;image.style.width=s.w+'px';image.style.height=s.h+'px';image.hidden=false;message('');root.removeAttribute('aria-busy');fit();
         }catch(error){if(active===s){root.removeAttribute('aria-busy');message(error.message+'；筆記與原圖仍保留。');}}
         finally{clearTimeout(timer);if(abort)s.abort.signal.removeEventListener('abort',abort);}

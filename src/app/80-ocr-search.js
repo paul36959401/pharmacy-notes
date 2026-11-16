@@ -74,7 +74,7 @@ const noteImageSearch=(()=>{
         const d=item.descriptor;
         if(d.kind==='data-url'&&['image/jpeg','image/png','image/gif','image/bmp'].includes(d.file.mime)&&d.file.bytes<=2000000)return {index:0,total:1};
         if(renderCache?.key!==d.file.key){
-            const source=await window.noteDriveCloud.ensureAsset(item.id,undefined,20),image=new Image();image.src=source;await image.decode();
+            const source=await window.noteDriveCloud.ensureAsset(item.id,undefined,20),image=new Image();image.src=source;await noteImageReady(image);
             const cols=Math.max(1,Math.ceil((image.naturalWidth-64)/1936)),rows=Math.max(1,Math.ceil((image.naturalHeight-64)/1936));
             if(cols*rows>64)throw new Error('這張圖片過長，暫時無法建立完整文字索引；原圖仍可閱讀與編輯。');
             if(renderCache)renderCache.image.src='';renderCache={key:d.file.key,image,cols,rows};

@@ -77,7 +77,7 @@ function createNoteDriveCloud(options){
         if(!/^data:image\//i.test(value))return null;
         const image=new Image();image.src=value;
         try{
-            await image.decode();
+            await noteImageReady(image);
             const scale=Math.min(1,1280/image.naturalWidth,4096/image.naturalHeight,Math.sqrt(3000000/(image.naturalWidth*image.naturalHeight)));
             const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
             canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);

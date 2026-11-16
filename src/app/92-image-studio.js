@@ -53,7 +53,7 @@ const noteImageStudio = (() => {
             if(!/^https?:|^blob:/i.test(src||''))throw Error('圖片網址無效');
             src=await noteExternalImages.resolve(src,{signal});
         }
-        const image=new Image();image.decoding='async';image.src=src;await image.decode();if(signal?.aborted)throw Error('已停止圖片載入');
+        const image=new Image();image.decoding='async';image.src=src;await noteImageReady(image);if(signal?.aborted)throw Error('已停止圖片載入');
         if(!image.naturalWidth||!image.naturalHeight)throw Error('圖片尺寸無效');
         const canvas=document.createElement('canvas');canvas.width=canvas.height=1;canvas.getContext('2d').drawImage(image,0,0,1,1);canvas.toDataURL();return {src,image};
     }
@@ -521,7 +521,7 @@ const noteImageStudio = (() => {
     }
     async function packageImage(){
         const s=session,d=packagedDoc(),g=M.geometry(d),scale=Math.min(1,4096/Math.max(g.w,g.h),Math.sqrt(12000000/(g.w*g.h))),src=M.dataUrl(d,s.sources,scale);
-        const image=new Image();image.src=src;await image.decode();if(session!==s)throw Error('圖片編輯已取消');
+        const image=new Image();image.src=src;await noteImageReady(image);if(session!==s)throw Error('圖片編輯已取消');
         return {src,metadata:{v:4,sourceKey:s.originalKey,storedKey:noteImageStorage.sourceKey(s.original),w:s.w,h:s.h,doc:d}};
     }
     async function apply(){
@@ -541,7 +541,7 @@ const noteImageStudio = (() => {
     async function exportImage(type){
         const s=session;if(!s?.ready||s.busy)return;finishText();s.busy=true;update();
         try{
-            const d=packagedDoc(),g=M.geometry(d),requested=Number(el('studio-export-scale').value)||1,scale=Math.min(requested,4096/Math.max(g.w,g.h),Math.sqrt(12000000/(g.w*g.h))),image=new Image();image.src=M.dataUrl(d,s.sources,scale);await image.decode();if(session!==s)return;
+            const d=packagedDoc(),g=M.geometry(d),requested=Number(el('studio-export-scale').value)||1,scale=Math.min(requested,4096/Math.max(g.w,g.h),Math.sqrt(12000000/(g.w*g.h))),image=new Image();image.src=M.dataUrl(d,s.sources,scale);await noteImageReady(image);if(session!==s)return;
             const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(g.w*scale));canvas.height=Math.max(1,Math.round(g.h*scale));const ctx=canvas.getContext('2d');if(type==='jpg'){ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);}ctx.drawImage(image,0,0,canvas.width,canvas.height);
             const blob=await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(Error('無法產生輸出檔案')),type==='jpg'?'image/jpeg':'image/png',.95));if(session!==s)return;
             const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='筆記圖片-'+Date.now()+'.'+type;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);message(`已匯出 ${canvas.width} × ${canvas.height} ${type.toUpperCase()}；原圖與標記仍保留。`);canvas.width=canvas.height=1;
