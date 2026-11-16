@@ -19,27 +19,35 @@ const noteLinkedImages = (() => {
     function count() {return notesData.reduce((n, note) => n + linkedIn(note.text).length, 0);}
 
     async function storeNote(note, failures) {
-        const modal = document.getElementById('noteModal');
-        await openEditModal(note.id);
-        await waitFor(() => modal.classList.contains('active') && editingNoteId === note.id);
-        const before = imagesIn(note.text).length;
-        let changed = 0;
-        for (const image of [...document.querySelectorAll('#modal-text img')]) {
-            const url = image.getAttribute('src');
-            if (!isLinked(url)) continue;
+        // 1) Download first, with the editor closed, so nothing can reload it meanwhile.
+        const urls = [...new Set(linkedIn(note.text))], ready = new Map();
+        for (const url of urls) {
             try {
                 const data = await noteExternalImages.resolve(url);
                 if (!/^data:image\//.test(data)) throw new Error('不是圖片');
-                image.setAttribute('src', data);
-                image.removeAttribute('srcset');
-                changed++;
+                ready.set(url, data);
             } catch (error) {failures.push({note: label(note), url, message: error.message});}
+        }
+        if (!ready.size) return 0;
+        // 2) Open the note, swap every matching image in one step, save at once.
+        const modal = document.getElementById('noteModal');
+        const before = imagesIn(note.text).length, linkedBefore = linkedIn(note.text).length;
+        await openEditModal(note.id);
+        await waitFor(() => modal.classList.contains('active') && editingNoteId === note.id);
+        await new Promise(r => setTimeout(r, 300));
+        let changed = 0;
+        for (const image of document.querySelectorAll('#modal-text img')) {
+            const data = ready.get(image.getAttribute('src'));
+            if (!data) continue;
+            image.setAttribute('src', data); image.removeAttribute('srcset'); changed++;
         }
         if (changed) saveNote(); else closeModal();
         await waitFor(() => !modal.classList.contains('active'));
         const saved = notesData.find(n => n.id === note.id);
         if (!saved || imagesIn(saved.text).length !== before) throw new Error(label(note) + '儲存後圖片數不符，已停止；可從「垃圾桶與版本」還原。');
-        return changed;
+        const stored = linkedBefore - linkedIn(saved.text).length;
+        if (changed && stored <= 0) throw new Error(label(note) + '的圖片沒有成功存進筆記，已停止。');
+        return stored;
     }
     async function run(onProgress = () => {}) {
         if (running) return;

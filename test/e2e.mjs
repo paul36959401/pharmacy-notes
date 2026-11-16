@@ -132,7 +132,7 @@ try {
     const proxied = [];
     const fullPng = Buffer.from((await png(640, 480, '#9333ea', 'full')).split(',')[1], 'base64');
     await context.route('https://script.google.com/macros/s/TEST/exec', async route => {
-        const body = JSON.parse(route.request().postData() || '{}'); proxied.push(body);
+        const body = JSON.parse(route.request().postData() || '{}'); proxied.push(body); await new Promise(r => setTimeout(r, 1500));
         if (!body.token) return route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify({success: false, error: 'no token'})});
         if (body.url.includes('blocked')) return route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify({success: false, code: 'EXTERNAL_IMAGE_HTTP', error: '來源網站限制', retryable: false})});
         route.fulfill({status: 200, contentType: 'application/json', headers: {'access-control-allow-origin': '*'}, body: JSON.stringify({success: true, mime: 'image/png', bytes: fullPng.length, key: drive.sha(fullPng), data: fullPng.toString('base64')})});

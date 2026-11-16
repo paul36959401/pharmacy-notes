@@ -8811,9 +8811,8 @@ const noteImageEditor={
 
 /* Optional editor assets */
 (function () {
-    var fonts = false, sort = false;
+    var sort = false;  // icons are local now (css/icons.css); only the optional sorter loads later
     document.addEventListener('pointerdown', function () {
-        if (!fonts) { fonts = true; var link = document.createElement('link'); link.rel = 'stylesheet'; link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'; document.head.appendChild(link); }
         if (!sort && document.getElementById('noteModal').classList.contains('active')) { sort = true; var script = document.createElement('script'); script.async = true; script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js'; script.onload = function () { setupPreviewSorting(); }; document.head.appendChild(script); }
     }, {capture:true});
 }());
@@ -9332,27 +9331,35 @@ const noteLinkedImages = (() => {
     function count() {return notesData.reduce((n, note) => n + linkedIn(note.text).length, 0);}
 
     async function storeNote(note, failures) {
-        const modal = document.getElementById('noteModal');
-        await openEditModal(note.id);
-        await waitFor(() => modal.classList.contains('active') && editingNoteId === note.id);
-        const before = imagesIn(note.text).length;
-        let changed = 0;
-        for (const image of [...document.querySelectorAll('#modal-text img')]) {
-            const url = image.getAttribute('src');
-            if (!isLinked(url)) continue;
+        // 1) Download first, with the editor closed, so nothing can reload it meanwhile.
+        const urls = [...new Set(linkedIn(note.text))], ready = new Map();
+        for (const url of urls) {
             try {
                 const data = await noteExternalImages.resolve(url);
                 if (!/^data:image\//.test(data)) throw new Error('不是圖片');
-                image.setAttribute('src', data);
-                image.removeAttribute('srcset');
-                changed++;
+                ready.set(url, data);
             } catch (error) {failures.push({note: label(note), url, message: error.message});}
+        }
+        if (!ready.size) return 0;
+        // 2) Open the note, swap every matching image in one step, save at once.
+        const modal = document.getElementById('noteModal');
+        const before = imagesIn(note.text).length, linkedBefore = linkedIn(note.text).length;
+        await openEditModal(note.id);
+        await waitFor(() => modal.classList.contains('active') && editingNoteId === note.id);
+        await new Promise(r => setTimeout(r, 300));
+        let changed = 0;
+        for (const image of document.querySelectorAll('#modal-text img')) {
+            const data = ready.get(image.getAttribute('src'));
+            if (!data) continue;
+            image.setAttribute('src', data); image.removeAttribute('srcset'); changed++;
         }
         if (changed) saveNote(); else closeModal();
         await waitFor(() => !modal.classList.contains('active'));
         const saved = notesData.find(n => n.id === note.id);
         if (!saved || imagesIn(saved.text).length !== before) throw new Error(label(note) + '儲存後圖片數不符，已停止；可從「垃圾桶與版本」還原。');
-        return changed;
+        const stored = linkedBefore - linkedIn(saved.text).length;
+        if (changed && stored <= 0) throw new Error(label(note) + '的圖片沒有成功存進筆記，已停止。');
+        return stored;
     }
     async function run(onProgress = () => {}) {
         if (running) return;
