@@ -428,6 +428,37 @@ const noteDriveServer = (() => {
         });
     }
 
+    /* ---------- small JSON files in the root folder (AI settings, AI sticky notes) ----------
+       Kept apart from the notes themselves, so they never slow down note saving. */
+    const rootFileIds = new Map();
+    const ROOT_JSON = /^nd-(ai-settings|ai-notes-[a-z]+)\.json$/;
+    async function rootJsonFile(name, create) {
+        if (!ROOT_JSON.test(name)) throw fail('檔名不正確。', 'REQUEST', false);
+        if (rootFileIds.has(name)) return rootFileIds.get(name);
+        const files = await list("name='" + q(name) + "' and '" + root + "' in parents and trashed=false", 'id,modifiedTime', 'modifiedTime desc', 10);
+        if (files[0]) {rootFileIds.set(name, files[0].id); return files[0].id;}
+        if (!create) return null;
+        const file = await createFile({name, parents: [root], mimeType: 'application/json'}, '{}', 'application/json', 'id');
+        rootFileIds.set(name, file.id); return file.id;
+    }
+    async function rootJsonRead(name) {
+        const id = await rootJsonFile(name, false);
+        if (!id) return null;
+        try {return JSON.parse(await mediaText(id));} catch (_) {return null;}
+    }
+    /* update(current) returns the new value; read + write run as one step so two saves never mix. */
+    function rootJsonUpdate(name, update) {
+        return serialize(async () => {
+            guardWrite();
+            const id = await rootJsonFile(name, true);
+            let current = null;
+            try {current = JSON.parse(await mediaText(id));} catch (_) {}
+            const next = update(current);
+            await replaceContent(id, JSON.stringify(next), 'application/json');
+            return next;
+        });
+    }
+
     /* ---------- weekly backups ----------
        A backup is a copy of one version's index (the list of text pages). Text pages and
        images are never deleted by this site, so a backup stays complete on its own.
@@ -700,6 +731,7 @@ const noteDriveServer = (() => {
                 case 'previews': return await getPreviews(packet.files);
                 case 'ocrIndex': return await ocrIndex(packet);
                 case 'ocrRecognize': return await ocrRecognize(packet);
+                case 'rootJsonRead': return {success: true, value: await rootJsonRead(packet.name)};
                 case 'backups': return {success: true, backups: await listBackups(book)};
                 case 'backupNow': return await backupNow(book, packet.kind === 'before-restore' ? 'before-restore' : 'manual');
                 case 'weeklyBackup': return await weeklyBackup(book);
@@ -728,5 +760,5 @@ const noteDriveServer = (() => {
         return root;
     }
     function setReadOnly(value) {readOnly = !!value;}
-    return {initialize, call, uploadBlob, downloadBlob, setReadOnly, isReadOnly: () => readOnly};
+    return {initialize, call, uploadBlob, downloadBlob, setReadOnly, isReadOnly: () => readOnly, rootJsonRead, rootJsonUpdate};
 })();

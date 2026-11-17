@@ -335,6 +335,88 @@ try {
         check(offline.banner && !offline.gate && offline.notes === notesOnline && notesOnline > 0, 'opens offline from this device, without sign-in: ' + JSON.stringify({...offline, notesOnline}));
         await pwa.context.close();
     }
+    // 問 AI: right-click menu, Gemini answer, remembered answers, PubChem structure, sticky notes.
+    {
+        const geminiBodies = [];
+        const cors = {'access-control-allow-origin': '*', 'access-control-allow-headers': '*'};
+        await context.route('https://generativelanguage.googleapis.com/**', async route => {
+            const r = route.request();
+            if (r.method() === 'OPTIONS') return route.fulfill({status: 204, headers: cors});
+            if (r.headers()['x-goog-api-key'] !== 'test-gemini-key') return route.fulfill({status: 400, headers: {...cors, 'content-type': 'application/json'}, body: JSON.stringify({error: {message: 'API key not valid. Please pass a valid API key.'}})});
+            if (r.method() === 'GET') return route.fulfill({status: 200, headers: {...cors, 'content-type': 'application/json'}, body: JSON.stringify({models: [{name: 'models/gemini-3.5-flash-lite', supportedGenerationMethods: ['generateContent']}]})});
+            const body = r.postData(); geminiBodies.push(body);
+            if (r.url().includes(':generateContent')) return route.fulfill({status: 200, headers: {...cors, 'content-type': 'application/json'}, body: JSON.stringify({candidates: [{content: {parts: [{text: '{"name":"Omeprazole","single":true}'}]}}]})});
+            const chunk = text => 'data: ' + JSON.stringify({candidates: [{content: {parts: [{text}]}}]}) + '\r\n\r\n';
+            return route.fulfill({status: 200, headers: {...cors, 'content-type': 'text/event-stream'}, body: chunk('## 分類\n- **PPI**（質子幫浦抑制劑）\n') + chunk('## 機轉\n- 不可逆抑制 H+/K+ ATPase\n\n| 項目 | 內容 |\n|---|---|\n| 前驅藥 | 是 |\n')});
+        });
+        await context.route('https://pubchem.ncbi.nlm.nih.gov/**', async route => {
+            const url = route.request().url();
+            if (url.includes('/PNG')) return route.fulfill({status: 200, headers: {...cors, 'content-type': 'image/png'}, body: Buffer.from(inlineImg.split(',')[1], 'base64')});
+            if (/name\/Omeprazole\//i.test(url)) return route.fulfill({status: 200, headers: {...cors, 'content-type': 'application/json'}, body: JSON.stringify({PropertyTable: {Properties: [{CID: 4594, Title: 'Omeprazole', MolecularFormula: 'C17H19N3O3S'}]}})});
+            return route.fulfill({status: 404, headers: cors, body: 'not found'});
+        });
+        await page.reload(); await signInAndWait(page);
+        await page.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
+        if (!await page.$('#text-n1')) {await page.fill('#search-input', 'Omeprazole'); await page.waitForTimeout(800);}
+        const before = await page.evaluate(() => notesData.find(x => x.id === 'n1').text);
+        // Right-click without a selection: no AI menu (the browser's own menu).
+        await page.click('#text-n1', {button: 'right', position: {x: 3, y: 3}});
+        check(!await page.$('.ai-menu'), 'right-click without selecting text shows no AI menu');
+        await page.evaluate(() => {const b = document.querySelector('#text-n1 b'); const r = document.createRange(); r.selectNodeContents(b); getSelection().removeAllRanges(); getSelection().addRange(r);});
+        const box = await (await page.$('#text-n1 b')).boundingBox();
+        await page.mouse.click(box.x + 5, box.y + 5, {button: 'right'});
+        await page.waitForSelector('.ai-menu', {timeout: 3000});
+        await page.screenshot({path: '/tmp/ai-menu.png'});
+        check(await page.$$eval('.ai-menu button', b => b.map(x => x.textContent).join('|')).then(s => /問 AI/.test(s) && /結構圖/.test(s)), 'select text + right-click shows the 問 AI menu');
+        await page.click('[data-ai-menu="ask"]');
+        await page.waitForSelector('#ai-panel:not([hidden]) #ai-key', {timeout: 10000});
+        check(await page.textContent('#ai-topic') === 'Omeprazole', 'AI window opens with the selected words as the topic');
+        await page.fill('#ai-key', 'test-gemini-key');
+        await page.click('#ai-save');
+        await page.waitForFunction(() => /已儲存/.test(document.getElementById('ai-settings-msg')?.textContent || ''), null, {timeout: 10000});
+        const settingsFile = [...drive.files.values()].find(f => f.name === 'nd-ai-settings.json');
+        check(settingsFile && JSON.parse(settingsFile.content).key === 'test-gemini-key', 'Gemini key is saved in the owner\'s Drive (not in the site code)');
+        await page.click('[data-ai-quick="0"]');
+        await page.waitForSelector('.ai-bot [data-ai-answer="stick"]', {timeout: 15000});
+        const answerHtml = await page.$eval('.ai-bot:last-child .ai-body', el => el.innerHTML);
+        check(/<h4>分類<\/h4>/.test(answerHtml) && /<table>/.test(answerHtml) && /<b>PPI<\/b>/.test(answerHtml), 'streamed answer is shown with headings, lists and a table');
+        check(geminiBodies.length === 1 && /Omeprazole/.test(geminiBodies[0]) && !/Prodrug|弱鹼性/.test(geminiBodies[0]), 'only the selected words go to Gemini, not the note');
+        await page.screenshot({path: '/tmp/ai-panel.png'});
+        await page.click('.ai-bot:last-child [data-ai-answer="stick"]');
+        await page.waitForFunction(() => /已貼到筆記/.test(document.querySelector('.ai-bot:last-child [data-ai-answer="stick"]')?.textContent || ''), null, {timeout: 15000});
+        const stickyFile = () => JSON.parse([...drive.files.values()].find(f => f.name === 'nd-ai-notes-pharmacology.json').content);
+        const after = await page.evaluate(() => notesData.find(x => x.id === 'n1').text);
+        const star = await page.evaluate(() => {const s = document.querySelector('#text-n1 .ai-sticky-star'); return s ? s.parentElement.tagName : null;});
+        check(stickyFile().items.length === 1 && stickyFile().items[0].quote === 'Omeprazole' && after === before && star === 'P', 'sticky note saved separately; star on the paragraph; note text unchanged (' + star + ')');
+        // Same question again: remembered, no new request.
+        await page.click('[data-ai-quick="0"]');
+        await page.waitForSelector('.ai-bot:last-child .ai-note', {timeout: 5000});
+        check(geminiBodies.length === 1, 'asking the same question again shows the remembered answer (no new request)');
+        // Structure from PubChem.
+        await page.click('#ai-panel [data-ai="structure"]');
+        await page.waitForSelector('.ai-structure img', {timeout: 10000});
+        await page.waitForTimeout(300); await page.screenshot({path: '/tmp/ai-structure.png'});
+        await page.click('#ai-panel [data-ai="close"]');
+        await page.screenshot({path: '/tmp/ai-star.png'});
+        await page.click('#text-n1 .ai-sticky-star'); await page.waitForSelector('.ai-pop'); await page.screenshot({path: '/tmp/ai-pop.png'}); await page.keyboard.press('Escape');
+        const img = await page.$eval('.ai-structure img', i => i.src);
+        check(/pubchem\.ncbi\.nlm\.nih\.gov\/rest\/pug\/compound\/cid\/4594\/PNG/.test(img) && /PubChem（CID 4594）/.test(await page.textContent('.ai-structure figcaption')), 'structure image comes from PubChem: ' + img);
+        await page.evaluate(() => noteAi.close());
+        // Text changed → the star moves to the note's top-right corner; it can be deleted.
+        await page.evaluate(() => {const n = notesData.find(x => x.id === 'n1'); n.text = n.text.replace('Omeprazole', 'Esomeprazole 改寫'); filterNotes();});
+        await page.waitForTimeout(300);
+        check(!!await page.$('.note-item[data-id="n1"] .ai-sticky-star.ai-sticky-loose'), 'when the text changes, the sticky moves to the note corner');
+        await page.click('.note-item[data-id="n1"] .ai-sticky-star');
+        await page.waitForSelector('.ai-pop [data-pop="delete"]');
+        check(await page.evaluate(() => !document.getElementById('noteModal').classList.contains('active')), 'clicking the star opens the sticky note, not the editor');
+        await page.click('.ai-pop [data-pop="delete"]');
+        await page.waitForFunction(() => !document.querySelector('.note-item[data-id="n1"] .ai-sticky-star'), null, {timeout: 15000});
+        check(stickyFile().items[0].deleted === true, 'a sticky note can be deleted');
+        await page.evaluate(n1 => {notesData.find(x => x.id === 'n1').text = n1; filterNotes();}, before);
+        await page.fill('#search-input', ''); await page.evaluate(() => filterNotes()); await page.waitForTimeout(500);
+        await page.setViewportSize({width: 390, height: 800}); await page.evaluate(() => {noteAi.open({text: 'Omeprazole', noteId: 'n1', quote: 'Omeprazole', prefix: '', suffix: ''}); noteAi.ask('「Omeprazole」：請條列說明分類、作用機轉、主要用途、重要副作用與交互作用，以及國考常考點。', 'quick');});
+        await page.waitForTimeout(800); await page.screenshot({path: '/tmp/ai-phone.png'}); await page.evaluate(() => noteAi.close()); await page.setViewportSize({width: 1100, height: 900});
+    }
     // Sign-in renewal: with < 10 minutes left, the next button click renews it.
     {
         const other = await open('renew');

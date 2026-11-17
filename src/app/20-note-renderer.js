@@ -202,6 +202,7 @@
         notePersistence.prepareRenderedImages(list);
         noteImageSearch.markImages(list);
         noteSearchNavigation.decorate(list,{preserveViewport:options.background});
+        window.noteAiDecorate?.(list);
     }
 
     function openGalleryImageViewer(index) {
