@@ -309,7 +309,7 @@ try {
         const sample = headFiles()[0];
         for (let i = 0; i < 230; i++) {
             const f = drive.add({name: 'pharmacology-' + crypto.randomUUID() + '.json', mimeType: 'application/json', parents: [bucketFolder.id], content: sample.content});
-            f.createdTime = f.modifiedTime = new Date(Date.parse('2025-01-01T00:00:00Z') + i * 3 * 86400000).toISOString();   // ~23 months
+            f.createdTime = f.modifiedTime = new Date(Date.parse('2025-01-01T00:00:00Z') + i * 86400000).toISOString();   // ~8 months, all older than the mock clock
         }
         const live = () => headFiles().filter(f => !f.trashed).length, total = live();
         if (!await page.isVisible('#drive-tidy')) await page.click('#drive-tools summary');
@@ -482,6 +482,61 @@ try {
         const page3 = await p.evaluate(() => noteBrowse.state().page);
         check(page1 === page0 + 1 && page2 === page0 && page3 === page0, 'phone swipe changes page; short or slow drags do not: ' + [page0, page1, page2, page3].join('→'));
         await phone.close();
+    }
+    // Comforts: 完成 button, Esc / outside click, Ctrl+S, foldable shortcut list, remembered draw settings, plain sync text.
+    {
+        await page.evaluate(() => openEditModal('n1'));
+        await page.waitForSelector('#noteModal.active #modal-text');
+        const buttons = await page.$$eval('#noteModal .modal-actions button', b => b.map(x => x.textContent.trim()));
+        const hintsHidden = await page.isHidden('#note-shortcut-hints');
+        await page.click('#note-hints-toggle');
+        const hintsShown = await page.isVisible('#note-shortcut-hints');
+        await page.click('#note-hints-toggle');
+        check(buttons.join('|') === '完成' && hintsHidden && hintsShown && await page.isHidden('#note-shortcut-hints'), 'editor: one 完成 button; shortcut list folded by default and can be opened: ' + buttons.join('|'));
+        await page.click('#modal-text');
+        await page.keyboard.press('End');
+        await page.keyboard.type('Esc測試');
+        let dialogSeen = false; page.once('dialog', () => {dialogSeen = true;});
+        await page.keyboard.press('Control+s');
+        await page.waitForTimeout(300);
+        check(!dialogSeen && await page.isVisible('#noteModal.active'), 'Ctrl+S saves without closing the editor');
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(400);
+        const closed = await page.evaluate(() => !document.getElementById('noteModal').classList.contains('active') && notesData.find(x => x.id === 'n1').text.includes('Esc測試'));
+        check(closed, 'Esc closes the editor and the text is kept');
+        // Outside click leaves the editor open.
+        await page.evaluate(() => openEditModal('n1'));
+        await page.waitForSelector('#noteModal.active #modal-text');
+        await page.mouse.click(5, 5);
+        await page.waitForTimeout(300);
+        check(await page.isVisible('#noteModal.active'), 'clicking outside does not close the editor');
+        await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+        await page.evaluate(() => {const n = notesData.find(x => x.id === 'n1'); n.text = n.text.replace('Esc測試', ''); autoSave(100);});
+        // Small windows: Esc and outside click close them; a click inside does not.
+        await page.evaluate(() => openHistoryModal());
+        await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+        const escClosed = await page.isHidden('#historyModal.active');
+        await page.click('#drive-manual'); await page.waitForSelector('#manualModal.active');
+        await page.click('#manual-search');
+        const insideKept = await page.isVisible('#manualModal.active');
+        await page.mouse.click(8, 450); await page.waitForTimeout(200);
+        check(escClosed && insideKept && await page.isHidden('#manualModal.active'), 'small windows close with Esc or an outside click, not an inside click');
+        // Random draw remembers the last settings across visits.
+        await page.evaluate(() => {openRandomDrawModal(); document.getElementById('random-draw-count').value = 3; document.getElementById('random-draw-scope').value = 'all'; performRandomDraw(); clearRandomDraw();});
+        await page.reload(); await signInAndWait(page);
+        await page.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
+        const remembered = await page.evaluate(() => {openRandomDrawModal(); const r = [document.getElementById('random-draw-count').value, document.getElementById('random-draw-scope').value]; closeRandomDrawModal(); return r;});
+        check(remembered.join() === '3,all', 'random draw remembers the last count and range: ' + remembered);
+        // Plain-language sync panel.
+        await page.waitForFunction(() => document.getElementById('sync-status')?.dataset.syncState === 'success', null, {timeout: 60000}).catch(() => {});
+        await page.click('#sync-status');
+        const sync = await page.evaluate(() => ({msg: document.getElementById('sync-detail-message').textContent, h: document.getElementById('sync-detail-headline').textContent, retry: document.getElementById('sync-retry').hidden, details: !document.querySelector('#sync-details details').open}));
+        await page.screenshot({path: '/tmp/sync-plain.png'});
+        await page.keyboard.press('Escape');
+        check(sync.h === '✓ 全部已存到雲端' && sync.retry && sync.details, 'sync panel says it plainly: ' + JSON.stringify(sync));
+        // Picture-text line hides when everything is done.
+        await page.waitForTimeout(500);
+        check(await page.isHidden('#note-image-search-status'), 'picture-text status line is hidden once all pictures are done: ' + await page.textContent('#note-image-search-status').catch(() => ''));
     }
     // Sign-in renewal: with < 10 minutes left, the next button click renews it.
     {

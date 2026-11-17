@@ -152,6 +152,20 @@
                 const msg=imageDraft?'圖片編輯草稿會保留；套用圖片後自動同步。':`${protectedLocal?'本機草稿已儲存':'正在保存草稿…'}${cloudError?' · 雲端連線後會自動重試':dirty||running?' · 等待雲端同步':' · 編輯會自動儲存，關閉不會捨棄修改'}`;
                 if (hint.textContent!==msg) hint.textContent=msg;
             }
+            const headline=$('sync-detail-headline'),plain=$('sync-detail-plain');
+            if (headline) {
+                const at=t=>t?new Date(t).toLocaleTimeString('zh-TW',{hour:'numeric',minute:'2-digit'}):'';
+                const [h,p]=loading?['正在讀取雲端…','先顯示這台裝置上的筆記，雲端讀完會自動更新。']
+                    :kind==='error'&&/合併/.test(String(cloudError))?['⟳ 正在合併其他裝置的修改…','內容已經存在這台裝置，合併完成後會自動存到雲端。']
+                    :kind==='error'?['⚠ 雲端暫時存不進去',(protectedLocal?'內容已經安全存在這台裝置，':'')+'網路恢復後會自動重試，也可以按「立即重試」。']
+                    :imageDraft?['圖片編輯中','按圖片工作室的「套用」後，就會自動存到雲端。']
+                    :matched?['✓ 全部已存到雲端',lastCloudAt?'最後確認：'+at(lastCloudAt):'']
+                    :['⟳ 正在存到雲端…',protectedLocal?'已經先存在這台裝置，不會遺失。':'正在保存，請稍候。'];
+                if (headline.textContent!==h) headline.textContent=h;
+                if (plain.textContent!==p) plain.textContent=p;
+                headline.dataset.kind=kind;
+                const retry=$('sync-retry'); if (retry) retry.hidden=matched||loading;
+            }
             const detail=$('sync-detail-message');
             const detailText=viewError || localError || cloudError || (imageDraft?'圖片修改目前是本機草稿，套用到筆記後才會上傳雲端。':cloudStage?cloudStage+'…':loading?'正在檢查筆記文字更新，圖片會按需要讀取。':matched?'已重新讀取雲端內容並確認與目前筆記一致。':'目前內容尚未確認全部存到雲端；本機草稿會保留。');
             if (detail && detail.textContent!==detailText) detail.textContent=detailText;
@@ -166,7 +180,7 @@
         function installUi() {
             if ($('sync-details')) return;
             $('sync-status').tabIndex=0;
-            document.body.insertAdjacentHTML('beforeend','<div id="sync-details" hidden><strong>自動儲存狀態</strong><p id="sync-detail-message"></p><p id="sync-detail-size"></p><small id="sync-detail-times"></small><div class="sync-detail-actions"><button type="button" id="sync-retry">立即重試</button><button type="button" id="sync-backup">下載完整備份</button><button type="button" id="sync-text-backup">下載純文字備份</button><button type="button" id="sync-detail-close">關閉</button></div></div>');
+            document.body.insertAdjacentHTML('beforeend','<div id="sync-details" hidden><strong id="sync-detail-headline" class="sync-headline">自動儲存狀態</strong><p id="sync-detail-plain" class="sync-plain"></p><details class="sync-more"><summary>詳細資訊</summary><p id="sync-detail-message"></p><p id="sync-detail-size"></p><small id="sync-detail-times"></small></details><div class="sync-detail-actions"><button type="button" id="sync-retry">立即重試</button><button type="button" id="sync-backup">下載完整備份</button><button type="button" id="sync-text-backup">下載純文字備份</button><button type="button" id="sync-detail-close">關閉</button></div></div>');
             const toggle=()=>{$('sync-details').hidden=!$('sync-details').hidden;status();positionToolbarSyncDetails();};
             $('sync-status').addEventListener('click',toggle);$('sync-status').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();}});
             $('sync-detail-close').onclick=()=>$('sync-details').hidden=true;

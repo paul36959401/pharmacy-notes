@@ -46,10 +46,17 @@ const noteImageSearch=(()=>{
         }
         refreshHold();publish();schedule(1500);
     }
+    let statusSeenWork=false,statusQuiet=false,statusHideTimer=0;
     function renderStatus(){
         const root=document.getElementById('note-image-search-status');if(!root)return;
-        root.hidden=!assets.size;
         const list=[...assets.keys()],done=list.filter(key=>entries.get(key)?.complete).length;
+        // Show the line only while pictures are still being read; when everything is done, it
+        // says so for a few seconds and then hides (nothing shown if all was already done).
+        if(done<list.length&&!indexReady&&!statusSeenWork)statusQuiet=true;   // still reading saved results: nothing to report yet
+        else if(done<list.length){statusSeenWork=true;clearTimeout(statusHideTimer);statusHideTimer=0;statusQuiet=false;}
+        else if(!statusSeenWork)statusQuiet=true;
+        else if(!statusHideTimer&&!statusQuiet)statusHideTimer=setTimeout(()=>{statusQuiet=true;statusHideTimer=0;renderStatus();},4000);
+        root.hidden=!assets.size||statusQuiet;
         const errored=list.map(key=>entries.get(key)?.error||failed.get(key)?.message).find(Boolean)||indexError,httpError=list.map(key=>entries.get(key)?.diagnostic?.status).find(Boolean);
         const text=done===list.length?'圖片文字已可搜尋：'+done+' 張':paused?'圖片文字辨識已暫停：'+done+'／'+list.length+' 張':errored?(httpError?'圖片文字辨識遇到 '+httpError+'：':'圖片文字辨識稍後接續：')+done+'／'+list.length+' 張':'正在背景建立圖片文字索引：'+done+'／'+list.length+' 張；現在可搜尋已完成的圖片。';
         root.querySelector('span').textContent=text;root.title=errored||'只辨識新圖片，結果會保存在 Drive；原圖、畫記與筆記不會被改寫。';

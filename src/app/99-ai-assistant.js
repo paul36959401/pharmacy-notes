@@ -412,7 +412,7 @@ const noteAi = (() => {
         });
         $('ai-form').addEventListener('submit', event => {event.preventDefault(); const q = $('ai-input').value.trim(); if (q) {$('ai-input').value = ''; void ask(q, 'quick', {followUp: thread.length > 0});}});
         $('ai-input').addEventListener('keydown', event => {if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {event.preventDefault(); $('ai-form').requestSubmit();}});
-        panel.addEventListener('keydown', event => {if (event.key === 'Escape') close();});
+        panel.addEventListener('keydown', event => {if (event.key === 'Escape' && !event.isComposing) {event.preventDefault(); close();}});
         // Drag by the title bar (desktop).
         const head = panel.querySelector('.ai-head');
         head.addEventListener('pointerdown', event => {
@@ -603,7 +603,7 @@ const noteAi = (() => {
             if (menu && !menu.contains(event.target) && event.button !== 2) closeMenu();
             if (pop && !pop.contains(event.target) && !event.target.closest('.ai-sticky-star')) closePop();
         }, true);
-        document.addEventListener('keydown', event => {if (event.key === 'Escape') {closeMenu(); closePop();}});
+        document.addEventListener('keydown', event => {if (event.key === 'Escape' && (menu || pop)) {event.preventDefault(); closeMenu(); closePop();}});
         addEventListener('scroll', () => closeMenu(), {passive: true, capture: true});
         // Phones: remember the last selection, for the 問 AI button in the bottom bar.
         document.addEventListener('selectionchange', () => {

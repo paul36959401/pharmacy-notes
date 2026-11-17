@@ -85,21 +85,24 @@ html[data-theme="dark"] ::selection {
     opacity: 0;
     pointer-events: none;
   }
-  /* Toolbar: two rows of four, each icon with its name underneath (no mouse hover on phones). */
+  /* Toolbar: one compact row; each icon with a short name underneath (no mouse hover on phones). */
   body .note-toolbar {
     width: 100%;
     box-sizing: border-box;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 2px;
+    padding: 3px;
   }
   body .note-toolbar-button[data-tool-label] {
     width: 100%;
-    height: 54px;
+    height: 44px;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
   }
+  body .note-toolbar-button[data-tool-label] svg {width: 17px; height: 17px;}
   .note-toolbar-button[data-tool-label]::after {
-    content: attr(data-tool-label);
-    font-size: 11px;
+    content: attr(data-tool-short);
+    font-size: 10px;
     line-height: 1;
     letter-spacing: 0;
     white-space: nowrap;
@@ -430,3 +433,28 @@ html[data-reading-line="wider"] #note-list .note-text {line-height: 2.3;}
 .draw-log-stats span {color: #78716c; font-size: .8rem;}
 @media (max-width: 480px) {.draw-log-stats {grid-template-columns: repeat(2, 1fr);}}
 .draw-log-stats-title {margin: 0 0 6px; color: #4338ca; font-weight: 700; font-size: .9rem;}
+
+@media (max-width: 759px) {
+  .note-toolbar-button.preview-active[data-tool-label]::after {content: "返回";}
+}
+
+/* ---------- 編輯畫面：快捷鍵說明可收合；手機打字區加大 ---------- */
+.note-editor-status {display: flex; align-items: center; justify-content: space-between; gap: 8px;}
+.note-editor-status #note-autosave-hint {flex: 1; min-width: 0;}
+#note-hints-toggle {flex: none; padding: 3px 10px; border: 1px solid #cbd5e1; border-radius: 999px; background: #f8fafc; color: #475569; font: inherit; font-size: 12px; cursor: pointer;}
+#note-hints-toggle[aria-expanded="true"] {background: #eef2ff; border-color: #c7d2fe; color: #4338ca;}
+#noteModal:not(.show-hints) .shortcut-hints, #noteModal:not(.show-hints) .image-editing-hint {display: none;}
+@media (max-width: 650px) {
+  #noteModal .toolbar-row-main {flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding-bottom: 2px;}
+  #noteModal .toolbar-row-main::-webkit-scrollbar {display: none;}
+  #noteModal .toolbar-row-main > * {flex: 0 0 auto;}
+  #noteModal #modal-text {min-height: 48vh;}
+}
+
+/* ---------- 雲端同步狀態（白話） ---------- */
+#sync-details .sync-headline {display: block; font-size: 15px; color: #0f766e;}
+#sync-details .sync-headline[data-kind="error"] {color: #b91c1c;}
+#sync-details .sync-headline[data-kind="syncing"] {color: #1d4ed8;}
+#sync-details .sync-plain {margin: 4px 0 6px; color: #334155;}
+#sync-details .sync-more summary {color: #64748b; cursor: pointer; font-size: 12px;}
+#sync-retry[hidden] {display: none;}

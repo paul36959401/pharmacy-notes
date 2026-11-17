@@ -1917,7 +1917,7 @@ const noteActions = (() => {
         if (previewToastTimer) clearTimeout(previewToastTimer);
         previewToastTimer = setTimeout(() => {
             toast.classList.remove('active');
-        }, 1600);
+        }, 1200);
     }
 
     function resetEditingFiltersForPreview() {
@@ -3031,11 +3031,12 @@ const noteActions = (() => {
         searchRenderTimer = setTimeout(filterNotes, 90);
     }
     function getRandomCandidates(scope='filtered'){if(scope==='all')return [...notesData];if(scope==='starred')return notesData.filter(n=>n.starred);if(scope==='category')return activeCategoryFilterId?notesData.filter(n=>getNoteCategoryIds(n).includes(activeCategoryFilterId)):[];return getNormallyFilteredNotes()}
-    function openRandomDrawModal(){const s=document.getElementById('random-draw-scope');s.value=activeCategoryFilterId?'category':(randomDrawState.scope||'filtered');document.getElementById('random-draw-count').value=randomDrawState.count||1;if(s.value==='review'||![...s.options].some(o=>o.value===s.value))s.value='filtered';updateRandomCandidateHint();noteDrawLog.refreshEntry();document.getElementById('randomDrawModal').classList.add('active')}
+    function savedRandomDraw(){try{return JSON.parse(localStorage.getItem('nd-random-draw')||'{}')}catch(_){return {}}}
+    function openRandomDrawModal(){const s=document.getElementById('random-draw-scope'),saved=savedRandomDraw();s.value=activeCategoryFilterId?'category':(saved.scope||(randomDrawState.scope!=='review'&&randomDrawState.scope)||'filtered');if(s.value==='category'&&!activeCategoryFilterId)s.value='filtered';document.getElementById('random-draw-count').value=saved.count||randomDrawState.count||1;if(s.value==='review'||![...s.options].some(o=>o.value===s.value))s.value='filtered';updateRandomCandidateHint();noteDrawLog.refreshEntry();document.getElementById('randomDrawModal').classList.add('active')}
     function closeRandomDrawModal(){document.getElementById('randomDrawModal').classList.remove('active')}
     function updateRandomCandidateHint(){const scope=document.getElementById('random-draw-scope')?.value||'filtered',c=getRandomCandidates(scope),count=Math.max(1,Math.min(50,Number(document.getElementById('random-draw-count')?.value)||1)),cat=getCategoryById(activeCategoryFilterId),label={filtered:'目前篩選結果',all:'全部筆記',starred:'星號筆記',category:cat?`分類「${cat.name}」`:'目前分類（尚未選取分類）'}[scope];document.getElementById('random-candidate-hint').textContent=`${label}共有 ${c.length} 則；本次最多會抽出 ${Math.min(count,c.length)} 則。`}
     function shuffledCopy(items){const a=[...items];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-    function performRandomDraw(reuse=false){const scope=reuse?randomDrawState.scope:(document.getElementById('random-draw-scope')?.value||'filtered'),count=reuse?randomDrawState.count:Math.max(1,Math.min(50,Number(document.getElementById('random-draw-count')?.value)||1)),c=getRandomCandidates(scope);if(!c.length)return alert(scope==='category'&&!activeCategoryFilterId?'請先在分類總覽選擇一個分類。':'目前範圍內沒有可以抽取的筆記。');const selected=shuffledCopy(c).slice(0,Math.min(count,c.length));randomDrawState={active:true,selectedIds:selected.map(n=>n.id),count,scope,sessionId:noteDrawLog.record(selected,scope)};closeRandomDrawModal();renderNotes(selected);updateRandomFilterBar();window.scrollTo({top:0,behavior:'smooth'})}
+    function performRandomDraw(reuse=false){const scope=reuse?randomDrawState.scope:(document.getElementById('random-draw-scope')?.value||'filtered'),count=reuse?randomDrawState.count:Math.max(1,Math.min(50,Number(document.getElementById('random-draw-count')?.value)||1)),c=getRandomCandidates(scope);if(!c.length)return alert(scope==='category'&&!activeCategoryFilterId?'請先在分類總覽選擇一個分類。':'目前範圍內沒有可以抽取的筆記。');const selected=shuffledCopy(c).slice(0,Math.min(count,c.length));if(!reuse&&scope!=='review')try{localStorage.setItem('nd-random-draw',JSON.stringify({scope,count}))}catch(_){}randomDrawState={active:true,selectedIds:selected.map(n=>n.id),count,scope,sessionId:noteDrawLog.record(selected,scope)};closeRandomDrawModal();renderNotes(selected);updateRandomFilterBar();window.scrollTo({top:0,behavior:'smooth'})}
     function repeatRandomDraw(){randomDrawState.active&&randomDrawState.scope!=='review'?performRandomDraw(true):openRandomDrawModal()}
     function clearRandomDraw(refresh=true){randomDrawState.active=false;randomDrawState.selectedIds=[];updateRandomFilterBar();if(refresh)filterNotes()}
     function updateRandomFilterBar(){const bar=document.getElementById('active-random-filter-bar');if(!bar)return;bar.classList.toggle('hidden',!randomDrawState.active);if(!randomDrawState.active)return;const count=randomDrawState.selectedIds.filter(id=>notesData.some(n=>n.id===id)).length,cat=getCategoryById(activeCategoryFilterId),label={filtered:'目前篩選結果',all:'全部筆記',starred:'星號筆記',category:cat?`分類「${cat.name}」`:'分類筆記'}[randomDrawState.scope]||'筆記';document.getElementById('active-random-summary').textContent=randomDrawState.scope==='review'?`正在看：${randomDrawState.reviewLabel||'抽取記錄'}（${count} 則）`:`已從${label}隨機抽出 ${count} 則完整筆記`}
@@ -6291,6 +6292,20 @@ function createNoteChunkCloud(options){return createNoteDriveCloud(options);}
                 const msg=imageDraft?'圖片編輯草稿會保留；套用圖片後自動同步。':`${protectedLocal?'本機草稿已儲存':'正在保存草稿…'}${cloudError?' · 雲端連線後會自動重試':dirty||running?' · 等待雲端同步':' · 編輯會自動儲存，關閉不會捨棄修改'}`;
                 if (hint.textContent!==msg) hint.textContent=msg;
             }
+            const headline=$('sync-detail-headline'),plain=$('sync-detail-plain');
+            if (headline) {
+                const at=t=>t?new Date(t).toLocaleTimeString('zh-TW',{hour:'numeric',minute:'2-digit'}):'';
+                const [h,p]=loading?['正在讀取雲端…','先顯示這台裝置上的筆記，雲端讀完會自動更新。']
+                    :kind==='error'&&/合併/.test(String(cloudError))?['⟳ 正在合併其他裝置的修改…','內容已經存在這台裝置，合併完成後會自動存到雲端。']
+                    :kind==='error'?['⚠ 雲端暫時存不進去',(protectedLocal?'內容已經安全存在這台裝置，':'')+'網路恢復後會自動重試，也可以按「立即重試」。']
+                    :imageDraft?['圖片編輯中','按圖片工作室的「套用」後，就會自動存到雲端。']
+                    :matched?['✓ 全部已存到雲端',lastCloudAt?'最後確認：'+at(lastCloudAt):'']
+                    :['⟳ 正在存到雲端…',protectedLocal?'已經先存在這台裝置，不會遺失。':'正在保存，請稍候。'];
+                if (headline.textContent!==h) headline.textContent=h;
+                if (plain.textContent!==p) plain.textContent=p;
+                headline.dataset.kind=kind;
+                const retry=$('sync-retry'); if (retry) retry.hidden=matched||loading;
+            }
             const detail=$('sync-detail-message');
             const detailText=viewError || localError || cloudError || (imageDraft?'圖片修改目前是本機草稿，套用到筆記後才會上傳雲端。':cloudStage?cloudStage+'…':loading?'正在檢查筆記文字更新，圖片會按需要讀取。':matched?'已重新讀取雲端內容並確認與目前筆記一致。':'目前內容尚未確認全部存到雲端；本機草稿會保留。');
             if (detail && detail.textContent!==detailText) detail.textContent=detailText;
@@ -6305,7 +6320,7 @@ function createNoteChunkCloud(options){return createNoteDriveCloud(options);}
         function installUi() {
             if ($('sync-details')) return;
             $('sync-status').tabIndex=0;
-            document.body.insertAdjacentHTML('beforeend','<div id="sync-details" hidden><strong>自動儲存狀態</strong><p id="sync-detail-message"></p><p id="sync-detail-size"></p><small id="sync-detail-times"></small><div class="sync-detail-actions"><button type="button" id="sync-retry">立即重試</button><button type="button" id="sync-backup">下載完整備份</button><button type="button" id="sync-text-backup">下載純文字備份</button><button type="button" id="sync-detail-close">關閉</button></div></div>');
+            document.body.insertAdjacentHTML('beforeend','<div id="sync-details" hidden><strong id="sync-detail-headline" class="sync-headline">自動儲存狀態</strong><p id="sync-detail-plain" class="sync-plain"></p><details class="sync-more"><summary>詳細資訊</summary><p id="sync-detail-message"></p><p id="sync-detail-size"></p><small id="sync-detail-times"></small></details><div class="sync-detail-actions"><button type="button" id="sync-retry">立即重試</button><button type="button" id="sync-backup">下載完整備份</button><button type="button" id="sync-text-backup">下載純文字備份</button><button type="button" id="sync-detail-close">關閉</button></div></div>');
             const toggle=()=>{$('sync-details').hidden=!$('sync-details').hidden;status();positionToolbarSyncDetails();};
             $('sync-status').addEventListener('click',toggle);$('sync-status').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();}});
             $('sync-detail-close').onclick=()=>$('sync-details').hidden=true;
@@ -7453,10 +7468,17 @@ const noteImageSearch=(()=>{
         }
         refreshHold();publish();schedule(1500);
     }
+    let statusSeenWork=false,statusQuiet=false,statusHideTimer=0;
     function renderStatus(){
         const root=document.getElementById('note-image-search-status');if(!root)return;
-        root.hidden=!assets.size;
         const list=[...assets.keys()],done=list.filter(key=>entries.get(key)?.complete).length;
+        // Show the line only while pictures are still being read; when everything is done, it
+        // says so for a few seconds and then hides (nothing shown if all was already done).
+        if(done<list.length&&!indexReady&&!statusSeenWork)statusQuiet=true;   // still reading saved results: nothing to report yet
+        else if(done<list.length){statusSeenWork=true;clearTimeout(statusHideTimer);statusHideTimer=0;statusQuiet=false;}
+        else if(!statusSeenWork)statusQuiet=true;
+        else if(!statusHideTimer&&!statusQuiet)statusHideTimer=setTimeout(()=>{statusQuiet=true;statusHideTimer=0;renderStatus();},4000);
+        root.hidden=!assets.size||statusQuiet;
         const errored=list.map(key=>entries.get(key)?.error||failed.get(key)?.message).find(Boolean)||indexError,httpError=list.map(key=>entries.get(key)?.diagnostic?.status).find(Boolean);
         const text=done===list.length?'圖片文字已可搜尋：'+done+' 張':paused?'圖片文字辨識已暫停：'+done+'／'+list.length+' 張':errored?(httpError?'圖片文字辨識遇到 '+httpError+'：':'圖片文字辨識稍後接續：')+done+'／'+list.length+' 張':'正在背景建立圖片文字索引：'+done+'／'+list.length+' 張；現在可搜尋已完成的圖片。';
         root.querySelector('span').textContent=text;root.title=errored||'只辨識新圖片，結果會保存在 Drive；原圖、畫記與筆記不會被改寫。';
@@ -10205,7 +10227,7 @@ const noteAi = (() => {
         });
         $('ai-form').addEventListener('submit', event => {event.preventDefault(); const q = $('ai-input').value.trim(); if (q) {$('ai-input').value = ''; void ask(q, 'quick', {followUp: thread.length > 0});}});
         $('ai-input').addEventListener('keydown', event => {if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {event.preventDefault(); $('ai-form').requestSubmit();}});
-        panel.addEventListener('keydown', event => {if (event.key === 'Escape') close();});
+        panel.addEventListener('keydown', event => {if (event.key === 'Escape' && !event.isComposing) {event.preventDefault(); close();}});
         // Drag by the title bar (desktop).
         const head = panel.querySelector('.ai-head');
         head.addEventListener('pointerdown', event => {
@@ -10396,7 +10418,7 @@ const noteAi = (() => {
             if (menu && !menu.contains(event.target) && event.button !== 2) closeMenu();
             if (pop && !pop.contains(event.target) && !event.target.closest('.ai-sticky-star')) closePop();
         }, true);
-        document.addEventListener('keydown', event => {if (event.key === 'Escape') {closeMenu(); closePop();}});
+        document.addEventListener('keydown', event => {if (event.key === 'Escape' && (menu || pop)) {event.preventDefault(); closeMenu(); closePop();}});
         addEventListener('scroll', () => closeMenu(), {passive: true, capture: true});
         // Phones: remember the last selection, for the 問 AI button in the bottom bar.
         document.addEventListener('selectionchange', () => {
@@ -10590,6 +10612,91 @@ const noteManual = (() => {
 })();
 function closeManualModal() {noteManual.close();}
 noteManual.start();
+/* Source: 99-polish.js */
+/* Small comforts:
+ *  - Esc closes the top window; clicking / tapping outside a small window closes it too.
+ *    The note editor only closes with Esc or 完成 (never by an outside click), and Esc
+ *    first closes anything open inside it (keyboard, colour palette, picture selection).
+ *  - Ctrl+S saves to the cloud right away (instead of the browser's "save page").
+ *  - The editor's shortcut list can be folded away (remembered).
+ */
+const notePolish = (() => {
+    'use strict';
+    const NO_OUTSIDE_CLOSE = new Set(['noteModal', 'noteImageEditModal', 'imageViewer']);
+    const OWN_KEYS = new Set(['noteImageEditModal', 'imageViewer']);   // these handle Esc themselves
+    function openWindows() {
+        return [...document.querySelectorAll('.modal-overlay.active, dialog.modal-overlay[open]')]
+            .filter(el => !el.hidden && getComputedStyle(el).display !== 'none');
+    }
+    function topWindow() {
+        let best = null, bestZ = -Infinity;
+        for (const el of openWindows()) {
+            const z = Number(getComputedStyle(el).zIndex) || 0;
+            if (z >= bestZ) {best = el; bestZ = z;}
+        }
+        return best;
+    }
+    function closeWindow(el) {
+        if (el.tagName === 'DIALOG') {el.querySelector('[data-recovery-close]')?.click(); return;}
+        if (el.id === 'noteModal') {closeModal(); return;}
+        const button = el.querySelector('[data-on-click^="close"]') || el.querySelector('.btn-cancel');
+        if (button) button.click(); else el.classList.remove('active');
+    }
+    function onKey(event) {
+        if (event.isComposing) return;
+        const editing = document.getElementById('noteModal')?.classList.contains('active');
+        if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.code === 'KeyS') {
+            event.preventDefault();
+            if (editing && !noteImageEditor.isOpen()) notePersistence.saveCurrent({automatic: true, close: false});
+            void notePersistence.flush?.();
+            showPreviewModeToast('已存檔，正在同步到雲端');
+            return;
+        }
+        if (event.key !== 'Escape' || event.defaultPrevented) return;
+        if (!document.getElementById('sync-details')?.hidden) return;              // the sync panel closes itself
+        if (document.querySelector('#ai-panel:not([hidden])')?.contains(document.activeElement)) return;
+        const top = topWindow();
+        if (!top || OWN_KEYS.has(top.id) || top.tagName === 'DIALOG') return;    // native dialogs close on Esc already
+        if (top.id === 'noteModal' && noteImageEditor.isOpen()) return;
+        event.preventDefault();
+        closeWindow(top);
+    }
+    function outsideClose() {
+        let pressed = null;
+        document.addEventListener('pointerdown', event => {
+            const el = event.target;
+            pressed = event.button === 0 && el instanceof Element && (el.matches('.modal-overlay.active') || el.matches('dialog.modal-overlay[open]')) ? {el, x: event.clientX, y: event.clientY} : null;
+        }, true);
+        document.addEventListener('pointerup', event => {
+            const start = pressed; pressed = null;
+            if (!start || event.target !== start.el || NO_OUTSIDE_CLOSE.has(start.el.id) || start.el.id === 'categoryOverviewModal' || start.el.id === 'moveModal' || start.el.id === 'randomDrawModal') return;
+            if (start.el.tagName === 'DIALOG') {   // a click on the dialog box itself also targets it: only close when outside its box
+                const r = start.el.getBoundingClientRect();
+                if (event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom) return;
+            }
+            if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 12) return;   // a drag, not a tap
+            if (start.el !== topWindow()) return;
+            closeWindow(start.el);
+        }, true);
+    }
+    function hintsToggle() {
+        const modal = document.getElementById('noteModal'), button = document.getElementById('note-hints-toggle');
+        if (!modal || !button) return;
+        const apply = open => {modal.classList.toggle('show-hints', open); button.setAttribute('aria-expanded', String(open)); button.textContent = open ? '⌨ 收起快捷鍵' : '⌨ 快捷鍵';};
+        let open = false;
+        try {open = localStorage.getItem('nd-editor-hints') === '1';} catch (_) {}
+        apply(open);
+        button.addEventListener('mousedown', event => event.preventDefault());   // keep the caret in the note
+        button.addEventListener('click', () => {open = !open; apply(open); try {localStorage.setItem('nd-editor-hints', open ? '1' : '0');} catch (_) {}});
+    }
+    function start() {
+        document.addEventListener('keydown', onKey);
+        outsideClose();
+        hintsToggle();
+    }
+    return {start, topWindow};
+})();
+notePolish.start();
 /* Source: 99-swipe.js */
 /* Phones: swipe the note list left / right to change page (like A / D on a keyboard).
  * Only a quick, mostly sideways swipe counts, so scrolling, long-press text selection,

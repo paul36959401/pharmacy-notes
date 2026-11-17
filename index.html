@@ -12,10 +12,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="藥學筆記">
 <title>藥學筆記雲端</title>
-<link rel="stylesheet" href="css/app.css?v=2026-11-18-pages-v18">
-<link rel="stylesheet" href="css/icons.css?v=2026-11-18-pages-v18">
-<link rel="stylesheet" href="css/site.css?v=2026-11-18-pages-v18">
-<link rel="stylesheet" href="css/theme.css?v=2026-11-18-pages-v18">
+<link rel="stylesheet" href="css/app.css?v=2026-11-18-pages-v19">
+<link rel="stylesheet" href="css/icons.css?v=2026-11-18-pages-v19">
+<link rel="stylesheet" href="css/site.css?v=2026-11-18-pages-v19">
+<link rel="stylesheet" href="css/theme.css?v=2026-11-18-pages-v19">
 <script>/* apply the saved light/dark choice before the page draws */try{var c=localStorage.getItem('nd-theme')||'light';document.documentElement.dataset.theme=(c==='dark'||(c==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light';var z=localStorage.getItem('nd-reading-zoom'),l=localStorage.getItem('nd-reading-line'),d=document.documentElement;if(z&&z!=='1'){d.dataset.readingZoom=z;d.style.setProperty('--reading-zoom',z);}if(l&&l!=='normal')d.dataset.readingLine=l;}catch(e){}</script>
 </head>
 <body>
@@ -45,14 +45,14 @@
             <input type="text" id="search-input" aria-label="搜尋筆記標題、內容、分類或圖片中的文字" placeholder="搜尋筆記、分類或圖片文字…" data-on-input="handleSearchInput" data-args="[&quot;$event&quot;]">
         </div>
         <div id="note-toolbar" class="note-toolbar" role="group" aria-label="筆記功能">
-            <button type="button" id="fab-history" class="note-toolbar-button" data-tool-label="編輯紀錄" aria-label="編輯紀錄" data-on-click="openHistoryModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 11a9 9 0 1 1 2.5 7"/><path d="M3 4v7h7"/><path d="M12 7v5l3 2"/></svg><span id="today-history-count" class="toolbar-sr-only" aria-hidden="true">0</span></button>
-            <button type="button" id="btn-category-overview" class="note-toolbar-button" data-tool-label="分類總覽" aria-label="分類總覽" data-on-click="openCategoryOverviewModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 3h7l10.4 10.4a2 2 0 0 1 0 2.8l-4.2 4.2a2 2 0 0 1-2.8 0L3 11V3Z"/><circle cx="7" cy="7" r="1"/></svg><span id="category-count-badge" class="toolbar-sr-only" aria-hidden="true">0</span></button>
-            <button type="button" id="fab-preview-toggle" class="note-toolbar-button" data-tool-label="預覽模式" aria-label="預覽模式" data-on-click="togglePreviewMode" aria-pressed="false"><span id="fab-preview-icon" class="note-toolbar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></span></button>
-            <button type="button" id="fab-sort-move" class="note-toolbar-button" data-tool-label="筆記移動" aria-label="筆記移動" data-on-click="openMoveModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v18M7 8l5-5 5 5M7 16l5 5 5-5"/></svg></button>
-            <button type="button" id="fab-add" class="note-toolbar-button" data-tool-label="新增筆記" aria-label="新增筆記" data-on-click="openAddModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></button>
-            <button type="button" id="btn-filter-star" class="note-toolbar-button" data-tool-label="顯示星號" aria-label="顯示星號" data-on-click="toggleStarFilter" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m12 3 2.8 5.7 6.3.9-4.5 4.4 1.1 6.2-5.7-3-5.7 3 1.1-6.2-4.5-4.4 6.3-.9L12 3Z"/></svg></button>
-            <button type="button" id="btn-random-draw" class="note-toolbar-button" data-tool-label="隨機抽筆記" aria-label="隨機抽筆記" data-on-click="openRandomDrawModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h2c5 0 9 12 14 12h2M3 18h2c1.8 0 3.4-1.5 5-3.6M14 9.6c1.7-2.1 3.2-3.6 5-3.6h2"/><path d="m18 3 3 3-3 3M18 15l3 3-3 3"/></svg></button>
-            <button type="button" id="sync-status" class="note-toolbar-button" data-tool-label="雲端同步" aria-label="雲端同步" data-sync-state="syncing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 18a4.5 4.5 0 0 1-.8-8.9 7 7 0 0 1 13.6 0A4.5 4.5 0 0 1 18 18H6Z"/></svg><span id="status-dot" class="status-dot dot-syncing" aria-hidden="true"></span><span id="status-text" class="toolbar-sr-only" aria-live="polite">讀取中...</span></button>
+            <button type="button" id="fab-history" data-tool-short="紀錄" class="note-toolbar-button" data-tool-label="編輯紀錄" aria-label="編輯紀錄" data-on-click="openHistoryModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 11a9 9 0 1 1 2.5 7"/><path d="M3 4v7h7"/><path d="M12 7v5l3 2"/></svg><span id="today-history-count" class="toolbar-sr-only" aria-hidden="true">0</span></button>
+            <button type="button" id="btn-category-overview" data-tool-short="分類" class="note-toolbar-button" data-tool-label="分類總覽" aria-label="分類總覽" data-on-click="openCategoryOverviewModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 3h7l10.4 10.4a2 2 0 0 1 0 2.8l-4.2 4.2a2 2 0 0 1-2.8 0L3 11V3Z"/><circle cx="7" cy="7" r="1"/></svg><span id="category-count-badge" class="toolbar-sr-only" aria-hidden="true">0</span></button>
+            <button type="button" id="fab-preview-toggle" data-tool-short="預覽" class="note-toolbar-button" data-tool-label="預覽模式" aria-label="預覽模式" data-on-click="togglePreviewMode" aria-pressed="false"><span id="fab-preview-icon" class="note-toolbar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></span></button>
+            <button type="button" id="fab-sort-move" data-tool-short="移動" class="note-toolbar-button" data-tool-label="筆記移動" aria-label="筆記移動" data-on-click="openMoveModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v18M7 8l5-5 5 5M7 16l5 5 5-5"/></svg></button>
+            <button type="button" id="fab-add" data-tool-short="新增" class="note-toolbar-button" data-tool-label="新增筆記" aria-label="新增筆記" data-on-click="openAddModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button type="button" id="btn-filter-star" data-tool-short="星號" class="note-toolbar-button" data-tool-label="顯示星號" aria-label="顯示星號" data-on-click="toggleStarFilter" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m12 3 2.8 5.7 6.3.9-4.5 4.4 1.1 6.2-5.7-3-5.7 3 1.1-6.2-4.5-4.4 6.3-.9L12 3Z"/></svg></button>
+            <button type="button" id="btn-random-draw" data-tool-short="抽筆記" class="note-toolbar-button" data-tool-label="隨機抽筆記" aria-label="隨機抽筆記" data-on-click="openRandomDrawModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h2c5 0 9 12 14 12h2M3 18h2c1.8 0 3.4-1.5 5-3.6M14 9.6c1.7-2.1 3.2-3.6 5-3.6h2"/><path d="m18 3 3 3-3 3M18 15l3 3-3 3"/></svg></button>
+            <button type="button" id="sync-status" data-tool-short="同步" class="note-toolbar-button" data-tool-label="雲端同步" aria-label="雲端同步" data-sync-state="syncing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 18a4.5 4.5 0 0 1-.8-8.9 7 7 0 0 1 13.6 0A4.5 4.5 0 0 1 18 18H6Z"/></svg><span id="status-dot" class="status-dot dot-syncing" aria-hidden="true"></span><span id="status-text" class="toolbar-sr-only" aria-live="polite">讀取中...</span></button>
         </div>
     </div>
 
@@ -99,8 +99,8 @@
             <input id="note-title-input" type="text" maxlength="100" placeholder="" aria-label="筆記標題（選填）">
         </div>
 
-<div id="note-autosave-hint" role="status" aria-live="polite">編輯會自動儲存，關閉不會捨棄修改。</div>
-<div class="shortcut-hints">
+<div class="note-editor-status"><div id="note-autosave-hint" role="status" aria-live="polite">編輯會自動儲存，關閉不會捨棄修改。</div><button type="button" id="note-hints-toggle" aria-expanded="false" aria-controls="note-shortcut-hints" title="顯示／收起快捷鍵說明">⌨ 快捷鍵</button></div>
+<div class="shortcut-hints" id="note-shortcut-hints">
             <span><b>Alt+H</b> 點按螢光筆／取消；長按開色盤，按住 Alt 再點 H 換色</span>
             <span><b>Alt+F</b> 點按上色／取消；長按開色盤，按住 Alt 再點 F 換色</span>
             <span><b>Alt+C</b> 清除格式</span>
@@ -187,8 +187,7 @@
         </div>
 
         <div class="modal-actions">
-            <button class="btn-cancel" data-on-click="closeModal">關閉</button>
-            <button class="btn-save" data-on-click="saveNote">儲存並關閉</button>
+            <button class="btn-save" data-on-click="closeModal" title="筆記會自動儲存；按 Esc 也可以關閉">完成</button>
         </div>
     </div>
 </div>
@@ -416,9 +415,9 @@
     </div>
 </div>
 
-<script src="js/config.js?v=2026-11-18-pages-v18"></script>
-<script src="js/auth.js?v=2026-11-18-pages-v18"></script>
-<script src="js/drive-server.js?v=2026-11-18-pages-v18"></script>
-<script src="js/boot.js?v=2026-11-18-pages-v18"></script>
+<script src="js/config.js?v=2026-11-18-pages-v19"></script>
+<script src="js/auth.js?v=2026-11-18-pages-v19"></script>
+<script src="js/drive-server.js?v=2026-11-18-pages-v19"></script>
+<script src="js/boot.js?v=2026-11-18-pages-v19"></script>
 </body>
 </html>
