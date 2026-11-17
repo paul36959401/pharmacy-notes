@@ -82,9 +82,34 @@ const noteDrawLog = (() => {
         const week = '日一二三四五六'[d.getDay()];
         return (diff === 0 ? '今天' : diff === 1 ? '昨天' : (d.getMonth() + 1) + '月' + d.getDate() + '日') + '（週' + week + '）';
     }
+    /* 今日讀書小統計: from the edit history and today's draws (both already synced). */
+    function todayStats() {
+        const today = localDateKey(), added = new Set(), edited = new Set();
+        for (const r of getHistoryForDate(today)) {
+            if (r.action === '新增') added.add(String(r.noteId));
+            else if (r.action === '編輯') edited.add(String(r.noteId));
+        }
+        added.forEach(id => edited.delete(id));
+        const sessions = drawLog.filter(s => localDateKey(s.at) === today), drawn = new Set(), known = new Set(), unknown = new Set();
+        for (const s of sessions) for (const i of s.items) {
+            drawn.add(i.noteId);
+            if (i.mark === 'known') {known.add(i.noteId); unknown.delete(i.noteId);}
+            if (i.mark === 'unknown') {unknown.add(i.noteId); known.delete(i.noteId);}
+        }
+        return {added: added.size, edited: edited.size, draws: sessions.length, drawn: drawn.size, known: known.size, unknown: unknown.size};
+    }
+    function renderStats() {
+        const box = document.getElementById('draw-log-stats');
+        if (!box) return;
+        const s = todayStats();
+        box.innerHTML = [['新增筆記', s.added, '則'], ['修改筆記', s.edited, '則'], ['抽筆記', s.draws, '次・' + s.drawn + ' 則'], ['熟／不熟', s.known + '／' + s.unknown, '則']]
+            .map(([label, value, unit]) => '<div><b>' + escapeHtml(String(value)) + '</b><span>' + label + '（' + unit + '）</span></div>').join('');
+        box.setAttribute('aria-label', '今日讀書小統計：新增 ' + s.added + ' 則、修改 ' + s.edited + ' 則、抽 ' + s.draws + ' 次共 ' + s.drawn + ' 則、熟 ' + s.known + ' 則、不熟 ' + s.unknown + ' 則');
+    }
     function render() {
         const box = document.getElementById('draw-log-list');
         if (!box) return;
+        renderStats();
         document.querySelectorAll('#drawLogModal [data-draw-filter]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.drawFilter === filter)));
         const unknownToday = todayUnknownIds();
         const todayBtn = document.getElementById('draw-log-today-unknown');
@@ -121,7 +146,7 @@ const noteDrawLog = (() => {
         button.textContent = '抽取記錄' + (todays.length ? '（今天 ' + todays.length + ' 次' + (unknown ? '、' + unknown + ' 則不熟' : '') + '）' : '');
     }
     function open() {filter = 'all'; render(); document.getElementById('drawLogModal').classList.add('active');}
-    return {normalize, prune, record, mark, markBarHtml, markOf, open, render, refreshEntry, todayUnknownIds, show, setFilter: value => {filter = value === 'unknown' ? 'unknown' : 'all'; render();},
+    return {normalize, prune, record, mark, markBarHtml, markOf, open, render, refreshEntry, todayUnknownIds, todayStats, show, setFilter: value => {filter = value === 'unknown' ? 'unknown' : 'all'; render();},
         session: id => drawLog.find(s => s.id === id)};
 })();
 

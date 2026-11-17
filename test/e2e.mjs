@@ -244,6 +244,12 @@ try {
     await page.waitForTimeout(300);
     const logText = await page.textContent('#draw-log-list');
     check(/今天/.test(logText) && /抽 3 則/.test(logText) && /熟 1・不熟 1/.test(logText), 'log window lists today\'s draw with marks');
+    {
+        const stats = await page.evaluate(() => noteDrawLog.todayStats());
+        const shown = await page.$$eval('#draw-log-stats b', b => b.map(x => x.textContent));
+        check(shown.length === 4 && stats.draws >= 1 && stats.drawn >= 3 && shown[2] === String(stats.draws) && shown[3] === '1／1' && stats.added + stats.edited >= 1, 'today stats shown in 抽取記錄: ' + JSON.stringify({stats, shown}));
+        await page.screenshot({path: '/tmp/stats.png'});
+    }
     await page.click('#drawLogModal [data-draw-filter="unknown"]');
     check((await page.$$('#draw-log-list li')).length === 1, '只看不熟 shows only the 不熟 note');
     await page.click('#draw-log-today-unknown');
@@ -435,6 +441,47 @@ try {
         const faq = await page.$$eval('#manual-body details', d => d.length);
         check(features > 40 && /按 V/.test(found) && current === '目前版本' && faq >= 10, 'manual lists features, finds 「回到選取」, marks the current version, has Q&A: ' + JSON.stringify({features, current, faq}));
         await page.click('#manualModal .btn-cancel');
+    }
+    // 閱讀字體／行距: only the reading view changes, never the notes.
+    {
+        const textBefore = await page.evaluate(() => JSON.stringify(notesData));
+        if (!await page.isVisible('#site-reading-zoom')) await page.click('#drive-tools summary');
+        await page.selectOption('#site-reading-zoom', '1.3');
+        await page.selectOption('#site-reading-line', 'wide');
+        const look = await page.evaluate(() => {const t = document.querySelector('#note-list .note-text'); const s = getComputedStyle(t); return {zoom: s.zoom, line: s.lineHeight, font: s.fontSize, editorZoom: getComputedStyle(document.getElementById('modal-text')).zoom};});
+        await page.reload(); await signInAndWait(page);
+        const kept = await page.evaluate(() => ({zoom: document.documentElement.dataset.readingZoom, line: document.documentElement.dataset.readingLine, select: document.getElementById('site-reading-zoom').value}));
+        check(look.zoom === '1.3' && parseFloat(look.line) > parseFloat(look.font) * 1.9 && look.editorZoom === '1' && kept.zoom === '1.3' && kept.line === 'wide' && kept.select === '1.3'
+            && await page.evaluate(() => JSON.stringify(notesData)) === textBefore, 'reading size/line spacing change only the reading view and are remembered: ' + JSON.stringify({look, kept}));
+        await page.evaluate(() => {localStorage.removeItem('nd-reading-zoom'); localStorage.removeItem('nd-reading-line'); noteAppearance.initialize();});
+        await page.reload(); await signInAndWait(page);
+        await page.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
+    }
+    // Phones: swipe left/right to change page.
+    {
+        const phone = await browser.newContext({viewport: {width: 390, height: 800}, hasTouch: true, isMobile: true, serviceWorkers: 'block'});
+        await drive.install(phone);
+        const p = await phone.newPage();
+        p.on('dialog', d => d.accept());
+        await p.goto(BASE + '?book=pharmacology');
+        await signInAndWait(p);
+        await p.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
+        const swipe = (x1, x2, y = 400, ms = 150) => p.evaluate(({x1, x2, y, ms}) => new Promise(resolve => {
+            const list = document.getElementById('note-list'), target = list.querySelector('.note-text') || list;
+            const touch = x => new Touch({identifier: 1, target, clientX: x, clientY: y});
+            list.dispatchEvent(new TouchEvent('touchstart', {touches: [touch(x1)], changedTouches: [touch(x1)], bubbles: true}));
+            setTimeout(() => {list.dispatchEvent(new TouchEvent('touchend', {touches: [], changedTouches: [touch(x2)], bubbles: true})); setTimeout(resolve, 300);}, ms);
+        }), {x1, x2, y, ms});
+        const page0 = await p.evaluate(() => noteBrowse.state().page);
+        await swipe(320, 80);
+        const page1 = await p.evaluate(() => noteBrowse.state().page);
+        await swipe(80, 320);
+        const page2 = await p.evaluate(() => noteBrowse.state().page);
+        await swipe(320, 260);              // too short: not a page swipe
+        await swipe(320, 80, 400, 1200);    // too slow (a drag, not a swipe)
+        const page3 = await p.evaluate(() => noteBrowse.state().page);
+        check(page1 === page0 + 1 && page2 === page0 && page3 === page0, 'phone swipe changes page; short or slow drags do not: ' + [page0, page1, page2, page3].join('→'));
+        await phone.close();
     }
     // Sign-in renewal: with < 10 minutes left, the next button click renews it.
     {

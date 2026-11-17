@@ -416,3 +416,17 @@ html[data-theme="dark"] ::selection {
 .manual-release h4 span {margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #ccfbf1; color: #0f766e; font-size: .75rem;}
 .manual-release ul {margin: 0; padding-left: 1.2em;}
 .manual-empty {color: #78716c;}
+
+/* ---------- 閱讀字體大小與行距（只影響閱讀畫面） ---------- */
+html[data-reading-zoom] #note-list :is(.note-text, .note-title-display, .note-images-container) {zoom: var(--reading-zoom);}
+html[data-reading-line="wide"] #note-list .note-text {line-height: 1.95;}
+html[data-reading-line="wider"] #note-list .note-text {line-height: 2.3;}
+.site-reading {display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;}
+.site-reading-hint {color: #a8a29e; font-size: 12px;}
+.note-swipe-toast {position: fixed; left: 50%; bottom: 120px; z-index: 4000; transform: translateX(-50%); padding: 6px 14px; border-radius: 999px; background: rgba(28,25,23,.82); color: #fff; font-size: .9rem; pointer-events: none; transition: opacity .3s;}
+.draw-log-stats {display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 0 12px;}
+.draw-log-stats div {padding: 8px 6px; border: 1px solid #e0e7ff; border-radius: 12px; background: #f8faff; text-align: center;}
+.draw-log-stats b {display: block; color: #4338ca; font-size: 1.35rem; line-height: 1.2;}
+.draw-log-stats span {color: #78716c; font-size: .8rem;}
+@media (max-width: 480px) {.draw-log-stats {grid-template-columns: repeat(2, 1fr);}}
+.draw-log-stats-title {margin: 0 0 6px; color: #4338ca; font-weight: 700; font-size: .9rem;}

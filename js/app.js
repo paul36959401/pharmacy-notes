@@ -7280,7 +7280,7 @@ const noteBrowse=(()=>{
         }
         return[...ids];
     }
-    return {initialize,select,requestReveal,reveal,adjacentImageIds,isFlipping:()=>!!hold,bottomInset:()=>{const dock=el('note-reader-dock')||el('note-page-dock');return dock&&!dock.hidden?dock.offsetHeight+24:18;},state:()=>({size,page,count:pageCount(),total:items.length})};
+    return {initialize,select,requestReveal,reveal,adjacentImageIds,step:delta=>go(page+delta),isFlipping:()=>!!hold,bottomInset:()=>{const dock=el('note-reader-dock')||el('note-page-dock');return dock&&!dock.hidden?dock.offsetHeight+24:18;},state:()=>({size,page,count:pageCount(),total:items.length})};
 })();
 
 /* Background search updates keep existing rows, decoded images and the reader's viewport. */
@@ -7908,9 +7908,34 @@ const noteDrawLog = (() => {
         const week = '日一二三四五六'[d.getDay()];
         return (diff === 0 ? '今天' : diff === 1 ? '昨天' : (d.getMonth() + 1) + '月' + d.getDate() + '日') + '（週' + week + '）';
     }
+    /* 今日讀書小統計: from the edit history and today's draws (both already synced). */
+    function todayStats() {
+        const today = localDateKey(), added = new Set(), edited = new Set();
+        for (const r of getHistoryForDate(today)) {
+            if (r.action === '新增') added.add(String(r.noteId));
+            else if (r.action === '編輯') edited.add(String(r.noteId));
+        }
+        added.forEach(id => edited.delete(id));
+        const sessions = drawLog.filter(s => localDateKey(s.at) === today), drawn = new Set(), known = new Set(), unknown = new Set();
+        for (const s of sessions) for (const i of s.items) {
+            drawn.add(i.noteId);
+            if (i.mark === 'known') {known.add(i.noteId); unknown.delete(i.noteId);}
+            if (i.mark === 'unknown') {unknown.add(i.noteId); known.delete(i.noteId);}
+        }
+        return {added: added.size, edited: edited.size, draws: sessions.length, drawn: drawn.size, known: known.size, unknown: unknown.size};
+    }
+    function renderStats() {
+        const box = document.getElementById('draw-log-stats');
+        if (!box) return;
+        const s = todayStats();
+        box.innerHTML = [['新增筆記', s.added, '則'], ['修改筆記', s.edited, '則'], ['抽筆記', s.draws, '次・' + s.drawn + ' 則'], ['熟／不熟', s.known + '／' + s.unknown, '則']]
+            .map(([label, value, unit]) => '<div><b>' + escapeHtml(String(value)) + '</b><span>' + label + '（' + unit + '）</span></div>').join('');
+        box.setAttribute('aria-label', '今日讀書小統計：新增 ' + s.added + ' 則、修改 ' + s.edited + ' 則、抽 ' + s.draws + ' 次共 ' + s.drawn + ' 則、熟 ' + s.known + ' 則、不熟 ' + s.unknown + ' 則');
+    }
     function render() {
         const box = document.getElementById('draw-log-list');
         if (!box) return;
+        renderStats();
         document.querySelectorAll('#drawLogModal [data-draw-filter]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.drawFilter === filter)));
         const unknownToday = todayUnknownIds();
         const todayBtn = document.getElementById('draw-log-today-unknown');
@@ -7947,7 +7972,7 @@ const noteDrawLog = (() => {
         button.textContent = '抽取記錄' + (todays.length ? '（今天 ' + todays.length + ' 次' + (unknown ? '、' + unknown + ' 則不熟' : '') + '）' : '');
     }
     function open() {filter = 'all'; render(); document.getElementById('drawLogModal').classList.add('active');}
-    return {normalize, prune, record, mark, markBarHtml, markOf, open, render, refreshEntry, todayUnknownIds, show, setFilter: value => {filter = value === 'unknown' ? 'unknown' : 'all'; render();},
+    return {normalize, prune, record, mark, markBarHtml, markOf, open, render, refreshEntry, todayUnknownIds, todayStats, show, setFilter: value => {filter = value === 'unknown' ? 'unknown' : 'all'; render();},
         session: id => drawLog.find(s => s.id === id)};
 })();
 
@@ -9717,6 +9742,30 @@ const noteAppearance = (() => {
         select.value = read();
         select.onchange = () => {try {localStorage.setItem(KEY, select.value);} catch (_) {} apply(select.value);};
     }
+    /* Reading size and line spacing: only how notes look in the list, never the notes
+       themselves. The whole note is scaled, so pictures and text keep their proportions. */
+    const READING = {zoom: ['nd-reading-zoom', '1'], line: ['nd-reading-line', 'normal']};
+    const readSetting = name => {try {return localStorage.getItem(READING[name][0]) || READING[name][1];} catch (_) {return READING[name][1];}};
+    function applyReading() {
+        const root = document.documentElement, zoom = readSetting('zoom'), line = readSetting('line');
+        if (zoom === '1') delete root.dataset.readingZoom; else {root.dataset.readingZoom = zoom; root.style.setProperty('--reading-zoom', zoom);}
+        if (line === 'normal') delete root.dataset.readingLine; else root.dataset.readingLine = line;
+    }
+    function setupReading() {
+        const tools = document.getElementById('drive-tools');
+        if (!tools || document.getElementById('site-reading-zoom')) return;
+        const row = document.createElement('div');
+        row.className = 'site-appearance site-reading';
+        row.innerHTML = '<label>閱讀字體 <select id="site-reading-zoom"><option value="0.9">小</option><option value="1">標準</option><option value="1.15">大</option><option value="1.3">特大</option><option value="1.5">超大</option></select></label>' +
+            '<label>行距 <select id="site-reading-line"><option value="normal">標準</option><option value="wide">寬</option><option value="wider">更寬</option></select></label>' +
+            '<span class="site-reading-hint">只改變閱讀時的大小，不會改到筆記內容</span>';
+        (document.querySelector('.site-appearance') || tools.querySelector('.drive-actions'))?.after(row);
+        for (const name of ['zoom', 'line']) {
+            const select = row.querySelector('#site-reading-' + name);
+            select.value = readSetting(name);
+            select.onchange = () => {try {localStorage.setItem(READING[name][0], select.value);} catch (_) {} applyReading();};
+        }
+    }
     function setupDock() {
         let lastY = window.scrollY, ticking = false;
         window.addEventListener('scroll', () => {
@@ -9736,6 +9785,8 @@ const noteAppearance = (() => {
         apply();
         media?.addEventListener?.('change', () => apply());
         setupSetting();
+        applyReading();
+        setupReading();
         setupDock();
     }
     return {initialize, apply};
@@ -10539,3 +10590,52 @@ const noteManual = (() => {
 })();
 function closeManualModal() {noteManual.close();}
 noteManual.start();
+/* Source: 99-swipe.js */
+/* Phones: swipe the note list left / right to change page (like A / D on a keyboard).
+ * Only a quick, mostly sideways swipe counts, so scrolling, long-press text selection,
+ * and sideways scrolling inside wide tables or pictures keep working as before. */
+const noteSwipe = (() => {
+    'use strict';
+    let start = null, toastTimer = 0;
+    const blocked = target => target.closest?.('input, textarea, select, [contenteditable="true"], .ai-panel, .ai-pop, .note-category-stack, button, a');
+    function scrollsSideways(node, list) {
+        for (let el = node instanceof Element ? node : node?.parentElement; el && el !== list; el = el.parentElement) {
+            if (el.scrollWidth > el.clientWidth + 2 && /(auto|scroll)/.test(getComputedStyle(el).overflowX)) return true;
+        }
+        return false;
+    }
+    function toast(text) {
+        let el = document.querySelector('.note-swipe-toast');
+        if (!el) {el = document.createElement('div'); el.className = 'note-swipe-toast'; el.setAttribute('role', 'status'); document.body.append(el);}
+        el.textContent = text; el.style.opacity = '1';
+        clearTimeout(toastTimer); toastTimer = setTimeout(() => {el.style.opacity = '0';}, 900);
+    }
+    function start_(event) {
+        const list = event.currentTarget;
+        start = null;
+        if (event.touches.length !== 1 || document.querySelector('.modal-overlay.active') || blocked(event.target) || scrollsSideways(event.target, list)) return;
+        const t = event.touches[0];
+        start = {x: t.clientX, y: t.clientY, at: performance.now()};
+    }
+    function end(event) {
+        if (!start) return;
+        const t = event.changedTouches[0], dx = t.clientX - start.x, dy = t.clientY - start.y, dt = performance.now() - start.at;
+        start = null;
+        const selection = getSelection();
+        if (dt > 700 || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2 || (selection && !selection.isCollapsed)) return;
+        const before = noteBrowse.state();
+        if (!before.size || before.count <= 1) return;
+        if (noteBrowse.step(dx < 0 ? 1 : -1)) {const now = noteBrowse.state(); toast('第 ' + (now.page + 1) + '／' + now.count + ' 頁');}
+        else toast(dx < 0 ? '已經是最後一頁' : '已經是第一頁');
+    }
+    function initialize() {
+        const list = document.getElementById('note-list');
+        if (!list || list.dataset.swipe) return;
+        list.dataset.swipe = '1';
+        list.addEventListener('touchstart', start_, {passive: true});
+        list.addEventListener('touchend', end, {passive: true});
+        list.addEventListener('touchcancel', () => {start = null;}, {passive: true});
+    }
+    return {initialize};
+})();
+noteSwipe.initialize();

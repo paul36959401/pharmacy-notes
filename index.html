@@ -12,11 +12,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="藥學筆記">
 <title>藥學筆記雲端</title>
-<link rel="stylesheet" href="css/app.css?v=2026-11-18-pages-v17">
-<link rel="stylesheet" href="css/icons.css?v=2026-11-18-pages-v17">
-<link rel="stylesheet" href="css/site.css?v=2026-11-18-pages-v17">
-<link rel="stylesheet" href="css/theme.css?v=2026-11-18-pages-v17">
-<script>/* apply the saved light/dark choice before the page draws */try{var c=localStorage.getItem('nd-theme')||'light';document.documentElement.dataset.theme=(c==='dark'||(c==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light';}catch(e){}</script>
+<link rel="stylesheet" href="css/app.css?v=2026-11-18-pages-v18">
+<link rel="stylesheet" href="css/icons.css?v=2026-11-18-pages-v18">
+<link rel="stylesheet" href="css/site.css?v=2026-11-18-pages-v18">
+<link rel="stylesheet" href="css/theme.css?v=2026-11-18-pages-v18">
+<script>/* apply the saved light/dark choice before the page draws */try{var c=localStorage.getItem('nd-theme')||'light';document.documentElement.dataset.theme=(c==='dark'||(c==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light';var z=localStorage.getItem('nd-reading-zoom'),l=localStorage.getItem('nd-reading-line'),d=document.documentElement;if(z&&z!=='1'){d.dataset.readingZoom=z;d.style.setProperty('--reading-zoom',z);}if(l&&l!=='normal')d.dataset.readingLine=l;}catch(e){}</script>
 </head>
 <body>
 <div id="site-gate" class="site-gate" role="dialog" aria-modal="true" aria-labelledby="site-gate-title">
@@ -398,6 +398,8 @@
     <div class="modal-content draw-log-content">
         <h3 id="draw-log-title"><i class="fas fa-calendar-check"></i> 抽取記錄</h3>
         <p class="draw-log-intro">每次隨機抽筆記都會記在這裡（保留半年，手機和電腦同步）。抽出來的筆記下方可以按「熟／不熟」。</p>
+        <p class="draw-log-stats-title">今日讀書小統計</p>
+        <div id="draw-log-stats" class="draw-log-stats" aria-label="今日讀書小統計"></div>
         <div class="draw-log-toolbar">
             <div class="draw-log-filters" role="group" aria-label="篩選"><button type="button" data-draw-filter="all" aria-pressed="true" data-on-click="setDrawLogFilter" data-args="[&quot;all&quot;]">全部</button><button type="button" data-draw-filter="unknown" aria-pressed="false" data-on-click="setDrawLogFilter" data-args="[&quot;unknown&quot;]">只看不熟</button></div>
             <button type="button" id="draw-log-today-unknown" class="draw-log-review" data-on-click="showTodayUnknownNotes">顯示今天不熟的筆記</button>
@@ -414,9 +416,9 @@
     </div>
 </div>
 
-<script src="js/config.js?v=2026-11-18-pages-v17"></script>
-<script src="js/auth.js?v=2026-11-18-pages-v17"></script>
-<script src="js/drive-server.js?v=2026-11-18-pages-v17"></script>
-<script src="js/boot.js?v=2026-11-18-pages-v17"></script>
+<script src="js/config.js?v=2026-11-18-pages-v18"></script>
+<script src="js/auth.js?v=2026-11-18-pages-v18"></script>
+<script src="js/drive-server.js?v=2026-11-18-pages-v18"></script>
+<script src="js/boot.js?v=2026-11-18-pages-v18"></script>
 </body>
 </html>

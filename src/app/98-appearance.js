@@ -21,6 +21,30 @@ const noteAppearance = (() => {
         select.value = read();
         select.onchange = () => {try {localStorage.setItem(KEY, select.value);} catch (_) {} apply(select.value);};
     }
+    /* Reading size and line spacing: only how notes look in the list, never the notes
+       themselves. The whole note is scaled, so pictures and text keep their proportions. */
+    const READING = {zoom: ['nd-reading-zoom', '1'], line: ['nd-reading-line', 'normal']};
+    const readSetting = name => {try {return localStorage.getItem(READING[name][0]) || READING[name][1];} catch (_) {return READING[name][1];}};
+    function applyReading() {
+        const root = document.documentElement, zoom = readSetting('zoom'), line = readSetting('line');
+        if (zoom === '1') delete root.dataset.readingZoom; else {root.dataset.readingZoom = zoom; root.style.setProperty('--reading-zoom', zoom);}
+        if (line === 'normal') delete root.dataset.readingLine; else root.dataset.readingLine = line;
+    }
+    function setupReading() {
+        const tools = document.getElementById('drive-tools');
+        if (!tools || document.getElementById('site-reading-zoom')) return;
+        const row = document.createElement('div');
+        row.className = 'site-appearance site-reading';
+        row.innerHTML = '<label>閱讀字體 <select id="site-reading-zoom"><option value="0.9">小</option><option value="1">標準</option><option value="1.15">大</option><option value="1.3">特大</option><option value="1.5">超大</option></select></label>' +
+            '<label>行距 <select id="site-reading-line"><option value="normal">標準</option><option value="wide">寬</option><option value="wider">更寬</option></select></label>' +
+            '<span class="site-reading-hint">只改變閱讀時的大小，不會改到筆記內容</span>';
+        (document.querySelector('.site-appearance') || tools.querySelector('.drive-actions'))?.after(row);
+        for (const name of ['zoom', 'line']) {
+            const select = row.querySelector('#site-reading-' + name);
+            select.value = readSetting(name);
+            select.onchange = () => {try {localStorage.setItem(READING[name][0], select.value);} catch (_) {} applyReading();};
+        }
+    }
     function setupDock() {
         let lastY = window.scrollY, ticking = false;
         window.addEventListener('scroll', () => {
@@ -40,6 +64,8 @@ const noteAppearance = (() => {
         apply();
         media?.addEventListener?.('change', () => apply());
         setupSetting();
+        applyReading();
+        setupReading();
         setupDock();
     }
     return {initialize, apply};

@@ -321,7 +321,7 @@ const noteBrowse=(()=>{
         }
         return[...ids];
     }
-    return {initialize,select,requestReveal,reveal,adjacentImageIds,isFlipping:()=>!!hold,bottomInset:()=>{const dock=el('note-reader-dock')||el('note-page-dock');return dock&&!dock.hidden?dock.offsetHeight+24:18;},state:()=>({size,page,count:pageCount(),total:items.length})};
+    return {initialize,select,requestReveal,reveal,adjacentImageIds,step:delta=>go(page+delta),isFlipping:()=>!!hold,bottomInset:()=>{const dock=el('note-reader-dock')||el('note-page-dock');return dock&&!dock.hidden?dock.offsetHeight+24:18;},state:()=>({size,page,count:pageCount(),total:items.length})};
 })();
 
 /* Background search updates keep existing rows, decoded images and the reader's viewport. */
