@@ -189,7 +189,7 @@ function createNoteDriveCloud(options){
         await cache.put([['page:'+item.file.key,{page,file:item.file,pageHash:await hash(enc.encode(JSON.stringify(page)))}]]);return page;
     }
     async function read({verify=false}={}){
-        await initializeCache();const result=await noteDriveRpc('read',{knownRevision:verify?null:head.revision,skipPreviews:verify&&loaded});
+        await initializeCache();const result=await noteDriveRpc('read',{knownRevision:verify?null:head.revision,skipPreviews:verify&&loaded,verify});
         if(verify&&result.unchanged)throw noteDriveError('雲端尚未提供可重新校驗的內容，未確認同步完成。','VERIFY');
         if(expected&&result.head.revision!==expected){expected=null;throw noteDriveError('另一個裝置已修改雲端，正在合併。','CONFLICT');}expected=null;
         if(result.format!=='pharmacy-notes-drive-v2')throw noteDriveError('雲端版本不相容。','FORMAT',false);

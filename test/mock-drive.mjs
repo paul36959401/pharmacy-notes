@@ -17,7 +17,7 @@ export function createMockDrive() {
         return files.get(id);
     }
     function meta(f, fields) {
-        const all = {id: f.id, name: f.name, mimeType: f.mimeType, parents: f.parents, createdTime: f.createdTime, modifiedTime: f.modifiedTime, trashed: f.trashed};
+        const all = {id: f.id, name: f.name, mimeType: f.mimeType, parents: f.parents, createdTime: f.createdTime, modifiedTime: f.modifiedTime, trashed: f.trashed, ...(f.appProperties ? {appProperties: f.appProperties} : {})};
         if (f.mimeType !== 'application/vnd.google-apps.folder' && !f.mimeType.startsWith('application/vnd.google-apps')) {
             all.size = String(f.content.length); all.sha256Checksum = sha(f.content);
         }
@@ -84,7 +84,9 @@ export function createMockDrive() {
             const f = files.get(m[1]);
             if (!f) return error(404, 'File not found');
             if (method === 'DELETE') {files.delete(f.id); return {status: 204, headers: {}, body: ''};}
+            if (method === 'PATCH') {const change = JSON.parse(body.toString('utf8') || '{}'); if ('trashed' in change) f.trashed = !!change.trashed; f.modifiedTime = now(); stats.writes++; return json(200, {id: f.id});}
             if (m[2]) return {status: 200, headers: {'content-type': 'text/plain'}, body: 'OCR 文字：' + f.name};
+            if (s.get('alt') === 'media' && f.name.startsWith('nd-catalog-')) stats.catalogDownloads = (stats.catalogDownloads || 0) + 1;
             if (s.get('alt') === 'media') return {status: 200, headers: {'content-type': f.mimeType}, body: f.content};
             return json(200, meta(f, s.get('fields')));
         }
@@ -133,7 +135,7 @@ export function createMockDrive() {
         });
         await context.route('https://accounts.google.com/gsi/client', route => route.fulfill({status: 200, contentType: 'text/javascript', body: `
             window.google={accounts:{oauth2:{
-                initTokenClient(cfg){const c={callback:cfg.callback,error_callback:null,requestAccessToken(){setTimeout(()=>c.callback({access_token:'tok-'+Date.now(),expires_in:3600,scope:'https://www.googleapis.com/auth/drive'}),20);}};return c;},
+                initTokenClient(cfg){const c={callback:cfg.callback,error_callback:null,requestAccessToken(){window.__tokenRequests=(window.__tokenRequests||0)+1;setTimeout(()=>c.callback({access_token:'tok-'+Date.now(),expires_in:3600,scope:'https://www.googleapis.com/auth/drive'}),20);}};return c;},
                 hasGrantedAllScopes(){return true;},revoke(t,cb){cb&&cb();}}}};`}));
     }
     return {files, add, install, stats, sha};

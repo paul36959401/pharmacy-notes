@@ -6,7 +6,10 @@
     const gateText = document.getElementById('site-gate-text');
     const gateButton = document.getElementById('site-gate-button');
     const params = new URLSearchParams(location.search);
-    const book = config.books.find(b => b.id === params.get('book')) || config.books[0];
+    // Opened from the home-screen icon (no ?book=): go to the subject used last time.
+    const book = config.books.find(b => b.id === params.get('book')) || config.books.find(b => b.id === localStorage.getItem('nd-last-book')) || config.books[0];
+    try {localStorage.setItem('nd-last-book', book.id);} catch (_) {}
+    if (!params.get('book')) history.replaceState(null, '', '?book=' + book.id);
     document.title = book.title + '｜藥學筆記雲端';
 
     function say(text, button = '') {
@@ -46,6 +49,36 @@
         if (typeof window.noteDriveStart !== 'function') throw new Error('未取得前端啟動函式');
         await window.noteDriveStart();
         window.noteDriveStartupComplete = true;
+        cacheLoadedFiles();
+    }
+
+    /* Home-screen app + offline: the service worker keeps the site's own files on this device. */
+    function cacheLoadedFiles() {
+        if (!navigator.serviceWorker) return;
+        navigator.serviceWorker.ready.then(registration => {
+            const urls = [location.pathname, ...performance.getEntriesByType('resource').map(e => e.name)]
+                .filter(u => new URL(u, location.href).origin === location.origin);
+            registration.active?.postMessage({type: 'cache-files', urls, release: config.release});
+        }).catch(() => {});
+    }
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+        navigator.serviceWorker.register('sw.js').then(() => cacheLoadedFiles()).catch(() => {});
+    }
+
+    /* No internet: open the copy kept on this device (reading and writing; changes are
+       uploaded once the connection is back). */
+    async function offlineStart() {
+        await noteDriveServer.initialize({books: config.books, offline: true});
+        window.NOTE_CLOUD_BOOTSTRAP = {native: true, release: config.release, workspace: localStorage.getItem('nd-root'), book: book.id, title: book.title,
+            books: config.books, appUrl: location.origin + location.pathname, offline: true};
+        readOnlyBanner();
+        gate.hidden = true;
+        const bar = document.getElementById('site-offline');
+        bar.hidden = false;
+        window.addEventListener('online', () => {
+            bar.querySelector('span').textContent = '已連上網路。修改會自動上傳；若要看到其他裝置的新內容，請重新整理。';
+        });
+        await loadApp();
     }
 
     async function afterSignIn() {
@@ -77,6 +110,7 @@
         say('網站還沒設定 Google 登入（config.js 的 clientId 是空的）。');
         return;
     }
+    if (navigator.onLine === false && localStorage.getItem('nd-root')) {offlineStart().catch(startupError); return;}
     noteAuth.loadLibrary().catch(error => say(error.message));
     gateButton.onclick = () => signIn(localStorage.getItem('nd-login-hint') ? '' : 'consent');
     if (noteAuth.hasToken()) afterSignIn().catch(startupError);

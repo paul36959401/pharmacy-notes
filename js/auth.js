@@ -1,7 +1,7 @@
 /* Google sign-in (Google Identity Services, token model).
  * The access token lives about 1 hour. It is kept in localStorage so reopening the
- * site inside that hour does not ask again (it expires by itself). When it expires, a silent refresh is tried;
- * if the browser blocks that pop-up, a banner asks for one click to reconnect.
+ * site inside that hour does not ask again. In the last 10 minutes the next button click renews it;
+ * if it still runs out and the browser blocks the pop-up, a banner asks for one click to reconnect.
  */
 const noteAuth = (() => {
     'use strict';
@@ -78,6 +78,20 @@ const noteAuth = (() => {
         }
         return waiting.promise;
     }
+    /* Renew before the hour runs out. Browsers only allow the Google window during a click,
+       so when less than 10 minutes are left (or it already ran out), the next click on a
+       button renews it. Clicks inside the note text are skipped so typing is never interrupted. */
+    let lastRenew = 0;
+    document.addEventListener('click', event => {
+        if (!window.google?.accounts?.oauth2) return;
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target || target.closest('[contenteditable="true"], input, textarea, select, #auth-reconnect')) return;
+        if (!target.closest('button, a, summary, label, [role="button"], [data-on-click]')) return;
+        const left = expiresAt - Date.now();
+        if (left > 10 * 60000 || Date.now() - lastRenew < 60000) return;
+        lastRenew = Date.now();
+        request('').catch(() => {if (!token || Date.now() >= expiresAt) banner(true);});
+    }, true);
     function invalidate() {token = null; expiresAt = 0; try {localStorage.removeItem(KEY); sessionStorage.removeItem(KEY);} catch (_) {}}
     function signOut() {
         if (token && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(token, () => {});

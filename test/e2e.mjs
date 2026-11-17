@@ -10,7 +10,7 @@ const sharp = require('/opt/npm-tools/node_modules/sharp');
 
 const SITE = new URL('..', import.meta.url).pathname;
 const BASE = 'http://localhost:8765/pharmacy-notes/';
-const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.gz': 'application/gzip', '.json': 'application/json'};
+const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.gz': 'application/gzip', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png'};
 const server = createServer(async (req, res) => {
     let path = decodeURIComponent(new URL(req.url, BASE).pathname).replace(/^\/pharmacy-notes\//, '/');
     if (path.endsWith('/')) path += 'index.html';
@@ -50,8 +50,8 @@ await (await import('node:fs/promises')).writeFile(backupPath, JSON.stringify(ba
 
 const browser = await chromium.launch();
 const problems = [];
-async function open(label, {fresh = true} = {}) {
-    const context = await browser.newContext({viewport: {width: 1100, height: 900}});
+async function open(label, {fresh = true, serviceWorkers = 'block'} = {}) {
+    const context = await browser.newContext({viewport: {width: 1100, height: 900}, serviceWorkers});
     await drive.install(context);
     const page = await context.newPage();
     page.on('console', m => {if (m.type() === 'error') problems.push(label + ' console: ' + m.text());});
@@ -258,6 +258,95 @@ try {
         await other.page.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
         const synced = await other.page.evaluate(() => ({sessions: drawLog.length, unknown: noteDrawLog.todayUnknownIds().length, marks: drawLog.at(-1)?.items.map(i => i.mark)}));
         check(synced.sessions >= 1 && synced.unknown === 1 && synced.marks.filter(Boolean).length === 2, 'draw log and marks sync to another device: ' + JSON.stringify(synced));
+        await other.context.close();
+    }
+    // Text pages already on this device are not downloaded again (open, and save confirmation).
+    {
+        const before = drive.stats.catalogDownloads || 0, headsBefore = headFiles().length;
+        await page.evaluate(() => {const n = notesData.find(x => x.id === 'n1'); n.text += '<p>快取測試</p>'; autoSave(100);});
+        await page.waitForFunction(n => document.getElementById('sync-status')?.dataset.syncState === 'success', null, {timeout: 60000}).catch(() => {});
+        await page.waitForTimeout(1500);
+        await page.reload();
+        await signInAndWait(page);
+        await page.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
+        check(headFiles().length > headsBefore && (drive.stats.catalogDownloads || 0) === before, 'save + reopen downloads no text pages already on this device: ' + ((drive.stats.catalogDownloads || 0) - before));
+    }
+    // Backups: weekly automatic backup, list, restore (with a safety backup first).
+    {
+        const folder = () => [...drive.files.values()].find(f => f.name === '每週備份');
+        const backupsNow = () => [...drive.files.values()].filter(f => f.name.startsWith('backup-pharmacology-') && !f.trashed);
+        await page.evaluate(() => {localStorage.removeItem('nd-weekly-check-pharmacology'); window.NOTE_BACKUP_DELAY = 0;});
+        await page.evaluate(() => noteDriveServer.call({action: 'weeklyBackup', book: 'pharmacology'}));
+        const weeklyCount = backupsNow().length;
+        check(folder() && weeklyCount >= 1, 'weekly backup exists in 每週備份: ' + weeklyCount);
+        await page.evaluate(() => noteDriveServer.call({action: 'weeklyBackup', book: 'pharmacology'}));
+        check(backupsNow().length === weeklyCount, 'weekly backup does not repeat within a week');
+        const marker = await page.evaluate(() => notesData.find(x => x.id === 'n1').text);
+        await page.evaluate(() => {const n = notesData.find(x => x.id === 'n1'); n.text += '<p>還原後應消失</p>'; autoSave(100);});
+        await page.waitForFunction(() => document.getElementById('sync-status')?.dataset.syncState === 'success', null, {timeout: 60000}).catch(() => {});
+        await page.waitForTimeout(1500);
+        if (!await page.isVisible('#drive-backups')) await page.click('#drive-tools summary');
+        await page.waitForSelector('#drive-backups', {state: 'visible'});
+        await page.click('#drive-backups');
+        await page.waitForSelector('#backup-list .backup-row button');
+        await page.waitForTimeout(800); await page.screenshot({path: '/tmp/backup-modal.png'});
+        await page.click('#backup-list .backup-row button');   // confirm() is accepted automatically
+        await page.waitForEvent('load', {timeout: 60000});
+        await signInAndWait(page);
+        await page.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
+        const after = await page.evaluate(() => notesData.find(x => x.id === 'n1').text);
+        check(after === marker && backupsNow().length === weeklyCount + 1 && backupsNow().some(f => f.appProperties?.ndKind === 'before-restore'), 'restore brings back the backup and keeps a 還原前 backup: ' + backupsNow().length);
+    }
+    // Tidy old versions: keep the newest 200 + one per month, the rest to Drive trash.
+    {
+        const bucketFolder = [...drive.files.values()].find(f => f.mimeType === 'application/vnd.google-apps.folder' && /^[0-9a-f]{2}$/.test(f.name));
+        const sample = headFiles()[0];
+        for (let i = 0; i < 230; i++) {
+            const f = drive.add({name: 'pharmacology-' + crypto.randomUUID() + '.json', mimeType: 'application/json', parents: [bucketFolder.id], content: sample.content});
+            f.createdTime = f.modifiedTime = new Date(Date.parse('2025-01-01T00:00:00Z') + i * 3 * 86400000).toISOString();   // ~23 months
+        }
+        const live = () => headFiles().filter(f => !f.trashed).length, total = live();
+        if (!await page.isVisible('#drive-tidy')) await page.click('#drive-tools summary');
+        await page.waitForSelector('#drive-tidy', {state: 'visible'});
+        await page.click('#drive-tidy');
+        await page.waitForFunction(() => /整理完成|不需要整理|未完成/.test(document.getElementById('drive-message')?.textContent || ''), null, {timeout: 60000});
+        const message = await page.textContent('#drive-message');
+        const current = JSON.parse([...drive.files.values()].find(f => f.name === 'nd-pointer-pharmacology.json').content).headId;
+        check(/整理完成/.test(message) && live() < total && live() >= 200 && !drive.files.get(current).trashed, 'tidy keeps 200+monthly, keeps the current one: ' + total + ' -> ' + live() + ' (' + message + ')');
+        await page.reload(); await signInAndWait(page);
+        await page.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
+        check(await page.evaluate(() => notesData.some(x => x.id === 'n1')), 'notes still open normally after tidying');
+    }
+    // Home-screen app: manifest + icons, and opening without internet shows the notes kept on the device.
+    {
+        const pwa = await open('pwa', {serviceWorkers: 'allow'});
+        await signInAndWait(pwa.page);
+        await pwa.page.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
+        const manifest = await pwa.page.evaluate(async () => {const link = document.querySelector('link[rel=manifest]'); const m = await (await fetch(link.href)).json(); const icons = await Promise.all(m.icons.map(async i => (await fetch(new URL(i.src, link.href))).ok)); return {name: m.name, display: m.display, icons: icons.every(Boolean) && icons.length};});
+        check(manifest.name === '藥學筆記雲端' && manifest.display === 'standalone' && manifest.icons === 3, 'manifest and icons for 加入主畫面: ' + JSON.stringify(manifest));
+        await pwa.page.waitForFunction(() => navigator.serviceWorker.controller, null, {timeout: 20000}).catch(() => {});
+        await pwa.page.waitForTimeout(2500);
+        const notesOnline = await pwa.page.$$eval('#note-list .note-item', l => l.length);
+        await pwa.context.setOffline(true);
+        await pwa.page.reload();
+        await pwa.page.waitForFunction(() => window.noteDriveStartupComplete === true, null, {timeout: 30000}).catch(() => {});
+        await pwa.page.waitForTimeout(1500);
+        const offline = await pwa.page.evaluate(() => ({banner: !document.getElementById('site-offline').hidden, gate: !document.getElementById('site-gate').hidden, notes: document.querySelectorAll('#note-list .note-item').length}));
+        check(offline.banner && !offline.gate && offline.notes === notesOnline && notesOnline > 0, 'opens offline from this device, without sign-in: ' + JSON.stringify({...offline, notesOnline}));
+        await pwa.context.close();
+    }
+    // Sign-in renewal: with < 10 minutes left, the next button click renews it.
+    {
+        const other = await open('renew');
+        await signInAndWait(other.page);
+        await other.page.evaluate(() => localStorage.setItem('nd-token-v1', JSON.stringify({token: 'tok-old', expiresAt: Date.now() + 5 * 60000})));
+        await other.page.reload();
+        await signInAndWait(other.page);
+        const before = await other.page.evaluate(() => window.__tokenRequests || 0);
+        await other.page.click('#drive-tools summary');
+        await other.page.waitForTimeout(400);
+        const after = await other.page.evaluate(() => ({n: window.__tokenRequests || 0, left: JSON.parse(localStorage.getItem('nd-token-v1')).expiresAt - Date.now()}));
+        check(after.n === before + 1 && after.left > 50 * 60000, 'sign-in renews on a click when under 10 minutes remain: ' + JSON.stringify({before, ...after}));
         await other.context.close();
     }
     // 捲動載入: 20 notes first, more while scrolling.

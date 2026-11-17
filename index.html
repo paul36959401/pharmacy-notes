@@ -4,11 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f766e">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="藥學筆記">
 <title>藥學筆記雲端</title>
-<link rel="stylesheet" href="css/app.css?v=2026-11-17-pages-v14">
-<link rel="stylesheet" href="css/icons.css?v=2026-11-17-pages-v14">
-<link rel="stylesheet" href="css/site.css?v=2026-11-17-pages-v14">
-<link rel="stylesheet" href="css/theme.css?v=2026-11-17-pages-v14">
+<link rel="stylesheet" href="css/app.css?v=2026-11-17-pages-v15">
+<link rel="stylesheet" href="css/icons.css?v=2026-11-17-pages-v15">
+<link rel="stylesheet" href="css/site.css?v=2026-11-17-pages-v15">
+<link rel="stylesheet" href="css/theme.css?v=2026-11-17-pages-v15">
 <script>/* apply the saved light/dark choice before the page draws */try{var c=localStorage.getItem('nd-theme')||'light';document.documentElement.dataset.theme=(c==='dark'||(c==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light';}catch(e){}</script>
 </head>
 <body>
@@ -20,6 +27,7 @@
     <p class="site-gate-note">筆記只存在你自己的 Google Drive，這個網站不會把資料傳到其他地方。</p>
   </div>
 </div>
+<div id="site-offline" class="site-readonly site-offline" role="status" hidden><span><b>離線中</b>：顯示這台裝置上的筆記。修改會先存在這台裝置，連上網路後自動上傳。</span></div>
 <div id="site-readonly" class="site-readonly" role="status" hidden>
   <span title="確認筆記和圖片都正確後再開啟編輯。"><b>唯讀檢查模式</b>：修改不會存到雲端</span>
   <button id="site-readonly-enable" type="button">開啟編輯</button>
@@ -27,7 +35,7 @@
 
 <header class="drive-workspace">
   <div class="drive-workspace-top"><label for="drive-book">藥學筆記</label><select id="drive-book" aria-label="切換科目"></select><a id="drive-open-book" hidden>開啟科目</a><span class="drive-private">私人 Google Drive</span></div>
-  <details id="drive-tools"><summary>設定、匯入與儲存空間</summary><p id="drive-message" role="status">正在連線…</p><div class="drive-actions"><button id="drive-migrate" type="button" disabled hidden>從此科目的舊雲端搬移</button><button id="drive-import" type="button" disabled>匯入完整備份 JSON</button><button id="drive-linked-images" type="button" hidden>把連結圖片存進雲端</button><button id="drive-gallery-convert" type="button" hidden>把舊圖片區移進文字</button><button id="drive-convert" type="button" hidden>繼續搬移原圖</button><button id="drive-cancel" type="button" hidden>暫停搬移</button><button id="drive-quota" type="button">查看 Drive 空間</button></div><p id="drive-quota-text"></p><input id="drive-file" type="file" accept=".json,application/json" hidden></details>
+  <details id="drive-tools"><summary>設定、匯入與儲存空間</summary><p id="drive-message" role="status">正在連線…</p><div class="drive-actions"><button id="drive-migrate" type="button" disabled hidden>從此科目的舊雲端搬移</button><button id="drive-import" type="button" disabled>匯入完整備份 JSON</button><button id="drive-linked-images" type="button" hidden>把連結圖片存進雲端</button><button id="drive-gallery-convert" type="button" hidden>把舊圖片區移進文字</button><button id="drive-convert" type="button" hidden>繼續搬移原圖</button><button id="drive-cancel" type="button" hidden>暫停搬移</button><button id="drive-backups" type="button">備份與還原</button><button id="drive-tidy" type="button">整理舊版本</button><button id="drive-quota" type="button">查看 Drive 空間</button></div><p id="drive-quota-text"></p><input id="drive-file" type="file" accept=".json,application/json" hidden></details>
 </header>
 <div id="drive-start-error" role="alert" hidden style="max-width:900px;box-sizing:border-box;margin:12px auto;padding:14px;border:1px solid #dc2626;border-radius:12px;background:#fff7f7;color:#991b1b"><p id="drive-start-error-text"></p><p>請複製此錯誤回報；既有雲端資料未被清除。</p><button id="drive-start-reload" type="button">重新載入</button></div>
 <div class="container">
@@ -366,6 +374,15 @@
     </div>
 </div>
 
+<div class="modal-overlay" id="backupModal" role="dialog" aria-modal="true" aria-labelledby="backup-title">
+    <div class="modal-content backup-content">
+        <h3 id="backup-title"><i class="fas fa-clock-rotate-left"></i> 備份與還原</h3>
+        <p class="backup-intro">每週會自動備份這個科目一次，保留最近 8 份（存在 Google 雲端硬碟「藥學筆記雲端工作台／每週備份」）。還原前會先把目前的內容另外備份，所以還原也可以再還原回來。</p>
+        <div class="backup-toolbar"><button type="button" id="backup-now" data-on-click="noteBackupNow">立即備份</button><span id="backup-status" role="status"></span></div>
+        <div id="backup-list" class="backup-list"></div>
+        <div class="modal-actions"><button class="btn-cancel" data-on-click="closeBackupModal">關閉</button></div>
+    </div>
+</div>
 <div class="modal-overlay" id="drawLogModal" role="dialog" aria-modal="true" aria-labelledby="draw-log-title">
     <div class="modal-content draw-log-content">
         <h3 id="draw-log-title"><i class="fas fa-calendar-check"></i> 抽取記錄</h3>
@@ -386,9 +403,9 @@
     </div>
 </div>
 
-<script src="js/config.js?v=2026-11-17-pages-v14"></script>
-<script src="js/auth.js?v=2026-11-17-pages-v14"></script>
-<script src="js/drive-server.js?v=2026-11-17-pages-v14"></script>
-<script src="js/boot.js?v=2026-11-17-pages-v14"></script>
+<script src="js/config.js?v=2026-11-17-pages-v15"></script>
+<script src="js/auth.js?v=2026-11-17-pages-v15"></script>
+<script src="js/drive-server.js?v=2026-11-17-pages-v15"></script>
+<script src="js/boot.js?v=2026-11-17-pages-v15"></script>
 </body>
 </html>

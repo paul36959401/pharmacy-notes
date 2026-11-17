@@ -6,7 +6,7 @@ old=$(grep -oE "pages-v[0-9]+" js/config.js | head -1); n=${old#pages-v}; new="p
 day=$(TZ=Asia/Taipei date +%Y-%m-%d)
 sed -i -E "s/[0-9]{4}-[0-9]{2}-[0-9]{2}-$old/$day-$new/g" index.html js/config.js
 node tools/build.mjs >/dev/null
-cp -r .gitignore index.html js css assets src tools test /home/claude/pharmacy-notes/
+cp -r .gitignore index.html manifest.webmanifest sw.js js css assets src tools test /home/claude/pharmacy-notes/
 rm -f /home/claude/pharmacy-notes/test/.seed.json
 cd /home/claude/pharmacy-notes && git add -A && git commit -q -m "$1
 

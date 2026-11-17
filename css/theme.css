@@ -304,3 +304,17 @@ html[data-theme="dark"] ::selection {
   color: #78716c;
   font-weight: 400;
 }
+
+/* 備份與還原 */
+.backup-content {max-width: 560px;}
+.backup-content h3 {color: #0f766e;}
+.backup-intro {margin: 0 0 12px; color: #64748b; line-height: 1.55; font-size: .92rem;}
+.backup-toolbar {display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px;}
+.backup-toolbar button, .backup-row button {padding: 6px 14px; border: 1px solid #0f766e; border-radius: 999px; background: #fff; color: #0f766e; font: inherit; cursor: pointer;}
+.backup-toolbar button:disabled {opacity: .55; cursor: default;}
+#backup-status {color: #57534e; font-size: .9rem;}
+.backup-list {max-height: min(55vh, 480px); overflow: auto;}
+.backup-row {display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 12px; margin-bottom: 8px; border: 1px solid #e7e5e4; border-radius: 12px; background: #fbfefd;}
+.backup-row div {display: flex; flex-direction: column; gap: 2px;}
+.backup-row span {color: #78716c; font-size: .85rem;}
+.backup-empty {color: #78716c;}

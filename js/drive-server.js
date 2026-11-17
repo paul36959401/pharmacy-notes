@@ -54,8 +54,49 @@ const noteDriveServer = (() => {
         if (readOnly) throw fail('目前是「唯讀檢查模式」，不會寫入雲端。確認筆記都正確後，可在上方黃色橫幅開啟編輯。', 'READ_ONLY', false);
     }
 
+    /* ---------- text-page cache on this device ----------
+       Text pages are named by the SHA-256 of their content, so a copy whose checksum
+       matches the name is exactly the cloud file. Pages already on this device are not
+       downloaded again; only new or changed pages travel over the network. */
+    const pageCache = (() => {
+        let dbJob = null;
+        const open = () => dbJob ||= new Promise(resolve => {
+            try {
+                const request = indexedDB.open('nd-page-cache', 1);
+                request.onupgradeneeded = () => request.result.createObjectStore('pages');
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = request.onblocked = () => resolve(null);
+            } catch (_) {resolve(null);}
+        });
+        const run = async (mode, fn) => {
+            const db = await open(); if (!db) return null;
+            return new Promise(resolve => {
+                try {
+                    const tx = db.transaction('pages', mode), result = fn(tx.objectStore('pages'));
+                    tx.oncomplete = () => resolve(result?.result ?? null); tx.onerror = tx.onabort = () => resolve(null);
+                } catch (_) {resolve(null);}
+            });
+        };
+        async function get(key) {
+            const item = await run('readonly', store => store.get(key));
+            return item && item.blob instanceof Blob ? item.blob : null;
+        }
+        async function put(key, blob) {
+            await run('readwrite', store => store.put({blob, usedAt: Date.now()}, key));
+            if (Math.random() < 0.1) void prune();
+        }
+        async function prune() {   // keep the newest 400 pages
+            const all = await run('readonly', store => store.getAll()), keys = await run('readonly', store => store.getAllKeys());
+            if (!all || !keys || keys.length <= 400) return;
+            const old = keys.map((k, i) => [k, all[i].usedAt]).sort((a, b) => a[1] - b[1]).slice(0, keys.length - 400);
+            await run('readwrite', store => {old.forEach(([k]) => store.delete(k)); return null;});
+        }
+        return {get, put};
+    })();
+
     /* ---------- HTTP ---------- */
     async function http(url, options = {}, attempt = 0) {
+        if (navigator.onLine === false) throw fail('目前沒有網路，修改先存在這台裝置，連上網路後會自動上傳。', 'NETWORK');
         const token = await noteAuth.getToken();
         let response;
         try {
@@ -183,14 +224,14 @@ const noteDriveServer = (() => {
             throw fail('檔案識別碼不正確。', 'DESCRIPTOR', false);
         return d;
     }
-    async function find(key, role, bytes, mime) {
+    async function find(key, role, bytes, mime, knownCount = null) {
         const id = await bucket(key, false); if (!id) return null;
         const files = await list("name='nd-" + q(role) + '-' + key + "' and '" + id + "' in parents and trashed=false", 'id,size,sha256Checksum', '', 10);
         const file = files.find(f => Number(f.size) === bytes);
         if (!file) return null;
         if (file.sha256Checksum && file.sha256Checksum !== key) throw fail('既有雲端檔案校驗失敗，未確認儲存；請保留本機備份。', 'CHECKSUM', false);
         let count = 0;
-        if (role === 'catalog') count = await validateCatalog(await mediaBlob(file.id), mime);
+        if (role === 'catalog') count = knownCount != null && file.sha256Checksum === key ? knownCount : await validateCatalog(await mediaBlob(file.id), mime);
         return describe(file.id, key, bytes, mime, role, count);
     }
 
@@ -227,7 +268,8 @@ const noteDriveServer = (() => {
     async function storeBytes(bytes, key, mime, role) {
         let count = 0;
         if (role === 'catalog') count = await validateCatalog(new Blob([bytes], {type: mime}), mime);
-        const existing = await find(key, role, bytes.length, mime);
+        const existing = await find(key, role, bytes.length, mime, role === 'catalog' ? count : null);
+        if (role === 'catalog') await pageCache.put(key, new Blob([bytes], {type: mime}));
         if (existing) return existing;
         const folder = await bucket(key, true);
         const file = await createFile({name: 'nd-' + role + '-' + key, parents: [folder], mimeType: mime,
@@ -281,7 +323,7 @@ const noteDriveServer = (() => {
         const meta = await api('/files/' + encodeURIComponent(result.id) + '?fields=id,size,sha256Checksum');
         if (Number(meta.size) !== blob.size || (meta.sha256Checksum && meta.sha256Checksum !== key)) throw fail('Google Drive 原檔校驗未通過，尚未確認儲存。', 'CHECKSUM', false);
         let count = 0;
-        if (role === 'catalog') count = await validateCatalog(blob, mime);
+        if (role === 'catalog') {count = await validateCatalog(blob, mime); await pageCache.put(key, blob);}
         onProgress(blob.size, blob.size);
         return describe(result.id, key, blob.size, mime, role, count);
     }
@@ -335,16 +377,26 @@ const noteDriveServer = (() => {
         headCache.set(book.id, {head, fileId});
         return head;
     }
-    async function pageData(d) {
+    /* A text page: from this device when its checksum matches, otherwise from Drive.
+       When confirming a save (verify), Drive is still asked that the file exists with
+       the same checksum, but the content is not downloaded again. */
+    async function pageData(d, verify = false) {
         checkFile(d, 'catalog');
-        const blob = await mediaBlob(d.fileId);
-        return {file: d, data: blob};   // the client accepts a Blob here as well as base64
+        const cached = await pageCache.get(d.key);
+        if (cached && cached.size === d.bytes) {
+            if (!verify) return {file: d, data: cached};
+            const meta = await api('/files/' + encodeURIComponent(d.fileId) + '?fields=size,sha256Checksum,trashed').catch(() => null);
+            if (meta && !meta.trashed && Number(meta.size) === d.bytes && meta.sha256Checksum === d.key) return {file: d, data: cached};
+        }
+        const blob = await mediaBlob(d.fileId);   // the client accepts a Blob here as well as base64
+        if (blob.size === d.bytes && await sha256(new Uint8Array(await blob.arrayBuffer())) === d.key) await pageCache.put(d.key, new Blob([blob], {type: d.mime}));
+        return {file: d, data: blob};
     }
-    async function read(book, knownRevision, skipPreviews) {
+    async function read(book, knownRevision, skipPreviews, verify = false) {
         const head = await currentHead(book);
         if (head.revision && knownRevision === head.revision) return {success: true, format: APP, unchanged: true, head};
         // Direct Drive reads are cheap, so fetch every text page in parallel.
-        const pages = await limit(head.pages.map((d, index) => ({d, index})), async ({d, index}) => ({...await pageData(d), index}), 8);
+        const pages = await limit(head.pages.map((d, index) => ({d, index})), async ({d, index}) => ({...await pageData(d, verify), index}), 8);
         const previews = skipPreviews ? [] : (await getPreviews((head.preload || []).slice(0, 4))).files;
         return {success: true, format: APP, head, pages, previews};
     }
@@ -374,6 +426,108 @@ const noteDriveServer = (() => {
             headCache.set(book.id, {head, fileId: file.id});
             return {success: true, revision, head};
         });
+    }
+
+    /* ---------- weekly backups ----------
+       A backup is a copy of one version's index (the list of text pages). Text pages and
+       images are never deleted by this site, so a backup stays complete on its own.
+       They live in the folder 每週備份; the newest KEEP_BACKUPS per subject are kept. */
+    const BACKUP_FOLDER_NAME = '每週備份', KEEP_BACKUPS = 8, WEEK = 7 * 24 * 3600 * 1000;
+    let backupFolderId = null;
+    async function backupFolder(create) {
+        if (backupFolderId) return backupFolderId;
+        const found = await list("name='" + q(BACKUP_FOLDER_NAME) + "' and '" + root + "' in parents and mimeType='" + FOLDER + "' and trashed=false", 'id', 'createdTime', 10);
+        if (found[0]) return backupFolderId = found[0].id;
+        if (!create) return null;
+        guardWrite();
+        backupFolderId = (await api('/files?fields=id', {method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: BACKUP_FOLDER_NAME, mimeType: FOLDER, parents: [root]})})).id;
+        return backupFolderId;
+    }
+    async function listBackups(book) {
+        const folder = await backupFolder(false);
+        if (!folder) return [];
+        const files = await list("'" + folder + "' in parents and name contains 'backup-" + q(book.id) + "-' and trashed=false", 'id,name,createdTime,appProperties', 'createdTime desc', 100);
+        return files.filter(f => f.name.startsWith('backup-' + book.id + '-')).map(f => ({id: f.id, name: f.name, createdTime: f.appProperties?.ndCreatedAt || f.createdTime,
+            count: Number(f.appProperties?.ndCount || 0), kind: f.appProperties?.ndKind || 'weekly'}));
+    }
+    function backupNow(book, kind = 'manual') {
+        return serialize(async () => {
+            guardWrite();
+            headCache.delete(book.id);
+            const head = await currentHead(book);
+            if (!head.revision) return {success: true, skipped: true};
+            const folder = await backupFolder(true), now = new Date();
+            const day = new Date(now.getTime() + 8 * 3600000).toISOString().slice(0, 10);
+            await createFile({name: 'backup-' + book.id + '-' + day + '-' + head.revision.slice(0, 8) + '.json', parents: [folder], mimeType: 'application/json',
+                appProperties: {ndApp: APP, ndKind: kind, ndCount: String(head.count || 0), ndRevision: head.revision, ndCreatedAt: now.toISOString()}},
+                JSON.stringify({format: APP, kind: 'backup', book: book.id, createdAt: now.toISOString(), head}), 'application/json', 'id');
+            const backups = await listBackups(book);
+            await limit(backups.slice(KEEP_BACKUPS), b => trashFile(b.id), 4);   // to Drive trash, recoverable for 30 days
+            return {success: true, backups: backups.slice(0, KEEP_BACKUPS)};
+        });
+    }
+    async function weeklyBackup(book) {
+        if (readOnly) return {success: true, skipped: true, readOnly: true};
+        const backups = await listBackups(book);
+        if (backups[0] && Date.now() - Date.parse(backups[0].createdTime) < WEEK) return {success: true, skipped: true, backups};
+        return backupNow(book, 'weekly');
+    }
+    function restoreBackup(book, fileId) {
+        return serialize(async () => {
+            guardWrite();
+            const backups = await listBackups(book), chosen = backups.find(b => b.id === fileId);
+            if (!chosen) throw fail('找不到這份備份。', 'BACKUP', false);
+            const saved = JSON.parse(await mediaText(fileId)), old = saved?.head;
+            if (saved?.format !== APP || saved.book !== book.id || !old || !Array.isArray(old.pages)) throw fail('備份檔格式不正確，沒有還原。', 'BACKUP', false);
+            old.pages.forEach(d => checkFile(d, 'catalog'));
+            // Every text page must still be in Drive before anything changes.
+            await limit(old.pages, async d => {
+                const meta = await api('/files/' + encodeURIComponent(d.fileId) + '?fields=size,trashed');
+                if (meta.trashed || Number(meta.size) !== d.bytes) throw fail('備份需要的文字頁已不在雲端，沒有還原。', 'BACKUP', false);
+            }, 6);
+            headCache.delete(book.id);
+            const previous = await currentHead(book);
+            const revision = uuid();
+            const head = {format: APP, revision, previous: previous.revision, pages: old.pages, count: old.count, preload: old.preload || [],
+                updatedAt: new Date().toISOString(), restoredFrom: chosen.name};
+            const folder = await bucket(await sha256(enc.encode(book.id + revision)), true);
+            const file = await createFile({name: book.id + '-' + revision + '.json', parents: [folder], mimeType: 'application/json'}, JSON.stringify(head), 'application/json', 'id');
+            const pointerId = await pointerFile(book, true);
+            await replaceContent(pointerId, JSON.stringify({format: APP, book: book.id, revision, headId: file.id, updatedAt: head.updatedAt}), 'application/json');
+            headCache.set(book.id, {head, fileId: file.id});
+            return {success: true, revision, count: head.count};
+        });
+    }
+
+    /* ---------- tidying old versions ----------
+       Every save writes a small version file. Keep the newest KEEP_VERSIONS, plus the
+       last one of each month, plus the current one; move the rest to Drive trash
+       (recoverable there for 30 days). Text pages and images are never touched. */
+    const KEEP_VERSIONS = 200;
+    async function trashFile(id) {
+        guardWrite();
+        return api('/files/' + encodeURIComponent(id) + '?fields=id', {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({trashed: true})});
+    }
+    async function versionPlan(book) {
+        const pattern = headName(book);
+        const heads = (await list("name contains '" + q(book.id) + "' and mimeType='application/json' and trashed=false", 'id,name,createdTime', 'createdTime desc'))
+            .filter(f => pattern.test(f.name));
+        headCache.delete(book.id); await currentHead(book);
+        const current = headCache.get(book.id)?.fileId, keep = new Set(heads.slice(0, KEEP_VERSIONS).map(f => f.id)), months = new Set();
+        if (current) keep.add(current);
+        for (const f of heads) {
+            const month = new Date(Date.parse(f.createdTime) + 8 * 3600000).toISOString().slice(0, 7);
+            if (!months.has(month)) {months.add(month); keep.add(f.id);}
+        }
+        return {total: heads.length, keep: heads.filter(f => keep.has(f.id)).length, trash: heads.filter(f => !keep.has(f.id)).map(f => f.id)};
+    }
+    async function cleanupVersions(book, onProgress = () => {}) {
+        guardWrite();
+        const plan = await versionPlan(book);
+        let done = 0;
+        await limit(plan.trash, async id => {await trashFile(id); if (++done % 20 === 0 || done === plan.trash.length) onProgress(done, plan.trash.length);}, 6);
+        return {success: true, total: plan.total, kept: plan.keep, trashed: done};
     }
 
     /* ---------- previews ---------- */
@@ -535,7 +689,7 @@ const noteDriveServer = (() => {
             if (!packet || typeof packet !== 'object') throw fail('請求格式不正確。', 'REQUEST', false);
             const book = bookOf(packet.book);
             switch (packet.action) {
-                case 'read': return await read(book, packet.knownRevision, packet.skipPreviews === true);
+                case 'read': return await read(book, packet.knownRevision, packet.skipPreviews === true, packet.verify === true);
                 case 'pages': return await pages(book, packet.revision, packet.indices);
                 case 'commit': return await commit(book, packet);
                 case 'small': {
@@ -546,6 +700,12 @@ const noteDriveServer = (() => {
                 case 'previews': return await getPreviews(packet.files);
                 case 'ocrIndex': return await ocrIndex(packet);
                 case 'ocrRecognize': return await ocrRecognize(packet);
+                case 'backups': return {success: true, backups: await listBackups(book)};
+                case 'backupNow': return await backupNow(book, packet.kind === 'before-restore' ? 'before-restore' : 'manual');
+                case 'weeklyBackup': return await weeklyBackup(book);
+                case 'restoreBackup': return await restoreBackup(book, packet.fileId);
+                case 'versionPlan': {const plan = await versionPlan(book); return {success: true, total: plan.total, keep: plan.keep, trash: plan.trash.length};}
+                case 'cleanupVersions': return await cleanupVersions(book, packet.onProgress);
                 case 'quota': return {success: true, ...await api('/about?fields=storageQuota,user(emailAddress,displayName)')};
                 case 'externalImage': return await externalImage(packet.url);
                 case 'legacyRead': throw fail('舊版雲端已全部搬移完成，新版網站不再讀取舊雲端。', 'LEGACY_REMOVED', false);
@@ -558,6 +718,11 @@ const noteDriveServer = (() => {
 
     async function initialize(config) {
         books = config.books;
+        if (config.offline) {   // no internet: use the folder found last time; Drive is contacted again once online
+            root = localStorage.getItem('nd-root');
+            if (!root) throw fail('這台裝置還沒有連線開過筆記，請先連上網路開一次。', 'OFFLINE', false);
+            return root;
+        }
         root = await findRoot();
         await buckets();
         return root;
