@@ -17,6 +17,8 @@
         noteRecovery.load(rawNotes.filter(isRecoveryCarrier));
         const historyCarrier = rawNotes.find(item => item && (item.id === HISTORY_SYSTEM_ID || item._type === 'system-history'));
         const categoryCarrier = rawNotes.find(item => item && (item.id === CATEGORY_SYSTEM_ID || item._type === 'system-categories'));
+        const drawLogCarrier = rawNotes.find(item => item && item.id === DRAW_LOG_SYSTEM_ID);
+        drawLog = noteDrawLog.normalize(drawLogCarrier?.records);
         editHistory = Array.isArray(historyCarrier?.records) ? historyCarrier.records : (Array.isArray(data?.editHistory) ? data.editHistory : []);
         const rawCategoryDefinitions = Array.isArray(categoryCarrier?.records)
             ? categoryCarrier.records
@@ -34,7 +36,7 @@
             });
 
         notesData = rawNotes
-            .filter(item => item && !isRecoveryCarrier(item) && item.id !== HISTORY_SYSTEM_ID && item._type !== 'system-history' && item.id !== CATEGORY_SYSTEM_ID && item._type !== 'system-categories')
+            .filter(item => item && !isRecoveryCarrier(item) && item.id !== HISTORY_SYSTEM_ID && item._type !== 'system-history' && item.id !== CATEGORY_SYSTEM_ID && item._type !== 'system-categories' && item.id !== DRAW_LOG_SYSTEM_ID)
             .map(note => noteSafeContent.note(note));
         notesData.forEach(note => {
             note.title = cleanNoteTitle(note.title || '');
@@ -82,6 +84,7 @@
         noteGalleryConverter.initialize();
         noteLinkedImages.initialize();
         noteAppearance.initialize();
+        noteDrawLog.refreshEntry();
         noteImageSearch.start();
         await notePersistence.start();
     };
@@ -105,6 +108,11 @@
                 id: CATEGORY_SYSTEM_ID,
                 _type: 'system-categories',
                 records: categoryDefinitions
+            },
+            {
+                id: DRAW_LOG_SYSTEM_ID,
+                _type: 'system-draw-log',
+                records: noteDrawLog.prune(drawLog)
             }
         ];
     }
@@ -1253,14 +1261,14 @@
         searchRenderTimer = setTimeout(filterNotes, 90);
     }
     function getRandomCandidates(scope='filtered'){if(scope==='all')return [...notesData];if(scope==='starred')return notesData.filter(n=>n.starred);if(scope==='category')return activeCategoryFilterId?notesData.filter(n=>getNoteCategoryIds(n).includes(activeCategoryFilterId)):[];return getNormallyFilteredNotes()}
-    function openRandomDrawModal(){const s=document.getElementById('random-draw-scope');s.value=activeCategoryFilterId?'category':(randomDrawState.scope||'filtered');document.getElementById('random-draw-count').value=randomDrawState.count||1;updateRandomCandidateHint();document.getElementById('randomDrawModal').classList.add('active')}
+    function openRandomDrawModal(){const s=document.getElementById('random-draw-scope');s.value=activeCategoryFilterId?'category':(randomDrawState.scope||'filtered');document.getElementById('random-draw-count').value=randomDrawState.count||1;if(s.value==='review'||![...s.options].some(o=>o.value===s.value))s.value='filtered';updateRandomCandidateHint();noteDrawLog.refreshEntry();document.getElementById('randomDrawModal').classList.add('active')}
     function closeRandomDrawModal(){document.getElementById('randomDrawModal').classList.remove('active')}
     function updateRandomCandidateHint(){const scope=document.getElementById('random-draw-scope')?.value||'filtered',c=getRandomCandidates(scope),count=Math.max(1,Math.min(50,Number(document.getElementById('random-draw-count')?.value)||1)),cat=getCategoryById(activeCategoryFilterId),label={filtered:'目前篩選結果',all:'全部筆記',starred:'星號筆記',category:cat?`分類「${cat.name}」`:'目前分類（尚未選取分類）'}[scope];document.getElementById('random-candidate-hint').textContent=`${label}共有 ${c.length} 則；本次最多會抽出 ${Math.min(count,c.length)} 則。`}
     function shuffledCopy(items){const a=[...items];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-    function performRandomDraw(reuse=false){const scope=reuse?randomDrawState.scope:(document.getElementById('random-draw-scope')?.value||'filtered'),count=reuse?randomDrawState.count:Math.max(1,Math.min(50,Number(document.getElementById('random-draw-count')?.value)||1)),c=getRandomCandidates(scope);if(!c.length)return alert(scope==='category'&&!activeCategoryFilterId?'請先在分類總覽選擇一個分類。':'目前範圍內沒有可以抽取的筆記。');const selected=shuffledCopy(c).slice(0,Math.min(count,c.length));randomDrawState={active:true,selectedIds:selected.map(n=>n.id),count,scope};closeRandomDrawModal();renderNotes(selected);updateRandomFilterBar();window.scrollTo({top:0,behavior:'smooth'})}
-    function repeatRandomDraw(){randomDrawState.active?performRandomDraw(true):openRandomDrawModal()}
+    function performRandomDraw(reuse=false){const scope=reuse?randomDrawState.scope:(document.getElementById('random-draw-scope')?.value||'filtered'),count=reuse?randomDrawState.count:Math.max(1,Math.min(50,Number(document.getElementById('random-draw-count')?.value)||1)),c=getRandomCandidates(scope);if(!c.length)return alert(scope==='category'&&!activeCategoryFilterId?'請先在分類總覽選擇一個分類。':'目前範圍內沒有可以抽取的筆記。');const selected=shuffledCopy(c).slice(0,Math.min(count,c.length));randomDrawState={active:true,selectedIds:selected.map(n=>n.id),count,scope,sessionId:noteDrawLog.record(selected,scope)};closeRandomDrawModal();renderNotes(selected);updateRandomFilterBar();window.scrollTo({top:0,behavior:'smooth'})}
+    function repeatRandomDraw(){randomDrawState.active&&randomDrawState.scope!=='review'?performRandomDraw(true):openRandomDrawModal()}
     function clearRandomDraw(refresh=true){randomDrawState.active=false;randomDrawState.selectedIds=[];updateRandomFilterBar();if(refresh)filterNotes()}
-    function updateRandomFilterBar(){const bar=document.getElementById('active-random-filter-bar');if(!bar)return;bar.classList.toggle('hidden',!randomDrawState.active);if(!randomDrawState.active)return;const count=randomDrawState.selectedIds.filter(id=>notesData.some(n=>n.id===id)).length,cat=getCategoryById(activeCategoryFilterId),label={filtered:'目前篩選結果',all:'全部筆記',starred:'星號筆記',category:cat?`分類「${cat.name}」`:'分類筆記'}[randomDrawState.scope]||'筆記';document.getElementById('active-random-summary').textContent=`已從${label}隨機抽出 ${count} 則完整筆記`}
+    function updateRandomFilterBar(){const bar=document.getElementById('active-random-filter-bar');if(!bar)return;bar.classList.toggle('hidden',!randomDrawState.active);if(!randomDrawState.active)return;const count=randomDrawState.selectedIds.filter(id=>notesData.some(n=>n.id===id)).length,cat=getCategoryById(activeCategoryFilterId),label={filtered:'目前篩選結果',all:'全部筆記',starred:'星號筆記',category:cat?`分類「${cat.name}」`:'分類筆記'}[randomDrawState.scope]||'筆記';document.getElementById('active-random-summary').textContent=randomDrawState.scope==='review'?`正在看：${randomDrawState.reviewLabel||'抽取記錄'}（${count} 則）`:`已從${label}隨機抽出 ${count} 則完整筆記`}
 
     function executeSwap() {
         if (previewModeBlocksEditing()) return;

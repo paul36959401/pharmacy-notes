@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>藥學筆記雲端</title>
-<link rel="stylesheet" href="css/app.css?v=2026-11-17-pages-v12">
-<link rel="stylesheet" href="css/icons.css?v=2026-11-17-pages-v12">
-<link rel="stylesheet" href="css/site.css?v=2026-11-17-pages-v12">
-<link rel="stylesheet" href="css/theme.css?v=2026-11-17-pages-v12">
+<link rel="stylesheet" href="css/app.css?v=2026-11-17-pages-v13">
+<link rel="stylesheet" href="css/icons.css?v=2026-11-17-pages-v13">
+<link rel="stylesheet" href="css/site.css?v=2026-11-17-pages-v13">
+<link rel="stylesheet" href="css/theme.css?v=2026-11-17-pages-v13">
 <script>/* apply the saved light/dark choice before the page draws */try{var c=localStorage.getItem('nd-theme')||'light';document.documentElement.dataset.theme=(c==='dark'||(c==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light';}catch(e){}</script>
 </head>
 <body>
@@ -60,6 +60,7 @@
         <div><i class="fas fa-shuffle"></i> <span id="active-random-summary">目前顯示隨機抽出的筆記</span></div>
         <div class="random-filter-actions">
             <button type="button" data-on-click="repeatRandomDraw"><i class="fas fa-rotate"></i> 再抽一次</button>
+            <button type="button" data-on-click="openDrawLogModal"><i class="fas fa-calendar-check"></i> 抽取記錄</button>
             <button type="button" data-on-click="clearRandomDraw"><i class="fas fa-xmark"></i> 結束隨機抽取</button>
         </div>
     </div>
@@ -361,7 +362,20 @@
             <div class="random-setting-card"><label for="random-draw-scope">抽取範圍</label><select id="random-draw-scope" data-on-change="updateRandomCandidateHint"><option value="filtered">目前的搜尋／星號／分類結果</option><option value="all">全部筆記</option><option value="starred">只有星號筆記</option><option value="category">目前選取的分類</option></select></div>
         </div>
         <div id="random-candidate-hint" class="random-candidate-hint"></div>
-        <div class="modal-actions"><button class="btn-cancel" data-on-click="closeRandomDrawModal">取消</button><button class="btn-save" data-on-click="performRandomDraw"><i class="fas fa-shuffle"></i> 開始抽取</button></div>
+        <div class="modal-actions"><button type="button" id="btn-open-draw-log" class="btn-draw-log" data-on-click="openDrawLogModal">抽取記錄</button><button class="btn-cancel" data-on-click="closeRandomDrawModal">取消</button><button class="btn-save" data-on-click="performRandomDraw"><i class="fas fa-shuffle"></i> 開始抽取</button></div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="drawLogModal" role="dialog" aria-modal="true" aria-labelledby="draw-log-title">
+    <div class="modal-content draw-log-content">
+        <h3 id="draw-log-title"><i class="fas fa-calendar-check"></i> 抽取記錄</h3>
+        <p class="draw-log-intro">每次隨機抽筆記都會記在這裡（保留半年，手機和電腦同步）。抽出來的筆記下方可以按「熟／不熟」。</p>
+        <div class="draw-log-toolbar">
+            <div class="draw-log-filters" role="group" aria-label="篩選"><button type="button" data-draw-filter="all" aria-pressed="true" data-on-click="setDrawLogFilter" data-args="[&quot;all&quot;]">全部</button><button type="button" data-draw-filter="unknown" aria-pressed="false" data-on-click="setDrawLogFilter" data-args="[&quot;unknown&quot;]">只看不熟</button></div>
+            <button type="button" id="draw-log-today-unknown" class="draw-log-review" data-on-click="showTodayUnknownNotes">顯示今天不熟的筆記</button>
+        </div>
+        <div id="draw-log-list" class="draw-log-list"></div>
+        <div class="modal-actions"><button class="btn-cancel" data-on-click="closeDrawLogModal">關閉</button></div>
     </div>
 </div>
 
@@ -372,9 +386,9 @@
     </div>
 </div>
 
-<script src="js/config.js?v=2026-11-17-pages-v12"></script>
-<script src="js/auth.js?v=2026-11-17-pages-v12"></script>
-<script src="js/drive-server.js?v=2026-11-17-pages-v12"></script>
-<script src="js/boot.js?v=2026-11-17-pages-v12"></script>
+<script src="js/config.js?v=2026-11-17-pages-v13"></script>
+<script src="js/auth.js?v=2026-11-17-pages-v13"></script>
+<script src="js/drive-server.js?v=2026-11-17-pages-v13"></script>
+<script src="js/boot.js?v=2026-11-17-pages-v13"></script>
 </body>
 </html>

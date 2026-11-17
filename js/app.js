@@ -129,6 +129,8 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
     let randomDrawState = { active:false, selectedIds:[], count:1, scope:'filtered' };
 
     const HISTORY_SYSTEM_ID = '__EDIT_HISTORY_V1__';
+    const DRAW_LOG_SYSTEM_ID = '__NOTE_DRAW_LOG_V1__';   // 抽取記錄 (random draw log)
+    let drawLog = [];
     const CATEGORY_SYSTEM_ID = '__NOTE_CATEGORIES_V1__';
     const PREVIEW_MODE_STORAGE_KEY = 'pharmacy-note-preview-mode-v1';
     const HISTORY_RETENTION_DAYS = 90;
@@ -1762,6 +1764,8 @@ const noteActions = (() => {
         noteRecovery.load(rawNotes.filter(isRecoveryCarrier));
         const historyCarrier = rawNotes.find(item => item && (item.id === HISTORY_SYSTEM_ID || item._type === 'system-history'));
         const categoryCarrier = rawNotes.find(item => item && (item.id === CATEGORY_SYSTEM_ID || item._type === 'system-categories'));
+        const drawLogCarrier = rawNotes.find(item => item && item.id === DRAW_LOG_SYSTEM_ID);
+        drawLog = noteDrawLog.normalize(drawLogCarrier?.records);
         editHistory = Array.isArray(historyCarrier?.records) ? historyCarrier.records : (Array.isArray(data?.editHistory) ? data.editHistory : []);
         const rawCategoryDefinitions = Array.isArray(categoryCarrier?.records)
             ? categoryCarrier.records
@@ -1779,7 +1783,7 @@ const noteActions = (() => {
             });
 
         notesData = rawNotes
-            .filter(item => item && !isRecoveryCarrier(item) && item.id !== HISTORY_SYSTEM_ID && item._type !== 'system-history' && item.id !== CATEGORY_SYSTEM_ID && item._type !== 'system-categories')
+            .filter(item => item && !isRecoveryCarrier(item) && item.id !== HISTORY_SYSTEM_ID && item._type !== 'system-history' && item.id !== CATEGORY_SYSTEM_ID && item._type !== 'system-categories' && item.id !== DRAW_LOG_SYSTEM_ID)
             .map(note => noteSafeContent.note(note));
         notesData.forEach(note => {
             note.title = cleanNoteTitle(note.title || '');
@@ -1827,6 +1831,7 @@ const noteActions = (() => {
         noteGalleryConverter.initialize();
         noteLinkedImages.initialize();
         noteAppearance.initialize();
+        noteDrawLog.refreshEntry();
         noteImageSearch.start();
         await notePersistence.start();
     };
@@ -1850,6 +1855,11 @@ const noteActions = (() => {
                 id: CATEGORY_SYSTEM_ID,
                 _type: 'system-categories',
                 records: categoryDefinitions
+            },
+            {
+                id: DRAW_LOG_SYSTEM_ID,
+                _type: 'system-draw-log',
+                records: noteDrawLog.prune(drawLog)
             }
         ];
     }
@@ -2998,14 +3008,14 @@ const noteActions = (() => {
         searchRenderTimer = setTimeout(filterNotes, 90);
     }
     function getRandomCandidates(scope='filtered'){if(scope==='all')return [...notesData];if(scope==='starred')return notesData.filter(n=>n.starred);if(scope==='category')return activeCategoryFilterId?notesData.filter(n=>getNoteCategoryIds(n).includes(activeCategoryFilterId)):[];return getNormallyFilteredNotes()}
-    function openRandomDrawModal(){const s=document.getElementById('random-draw-scope');s.value=activeCategoryFilterId?'category':(randomDrawState.scope||'filtered');document.getElementById('random-draw-count').value=randomDrawState.count||1;updateRandomCandidateHint();document.getElementById('randomDrawModal').classList.add('active')}
+    function openRandomDrawModal(){const s=document.getElementById('random-draw-scope');s.value=activeCategoryFilterId?'category':(randomDrawState.scope||'filtered');document.getElementById('random-draw-count').value=randomDrawState.count||1;if(s.value==='review'||![...s.options].some(o=>o.value===s.value))s.value='filtered';updateRandomCandidateHint();noteDrawLog.refreshEntry();document.getElementById('randomDrawModal').classList.add('active')}
     function closeRandomDrawModal(){document.getElementById('randomDrawModal').classList.remove('active')}
     function updateRandomCandidateHint(){const scope=document.getElementById('random-draw-scope')?.value||'filtered',c=getRandomCandidates(scope),count=Math.max(1,Math.min(50,Number(document.getElementById('random-draw-count')?.value)||1)),cat=getCategoryById(activeCategoryFilterId),label={filtered:'目前篩選結果',all:'全部筆記',starred:'星號筆記',category:cat?`分類「${cat.name}」`:'目前分類（尚未選取分類）'}[scope];document.getElementById('random-candidate-hint').textContent=`${label}共有 ${c.length} 則；本次最多會抽出 ${Math.min(count,c.length)} 則。`}
     function shuffledCopy(items){const a=[...items];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-    function performRandomDraw(reuse=false){const scope=reuse?randomDrawState.scope:(document.getElementById('random-draw-scope')?.value||'filtered'),count=reuse?randomDrawState.count:Math.max(1,Math.min(50,Number(document.getElementById('random-draw-count')?.value)||1)),c=getRandomCandidates(scope);if(!c.length)return alert(scope==='category'&&!activeCategoryFilterId?'請先在分類總覽選擇一個分類。':'目前範圍內沒有可以抽取的筆記。');const selected=shuffledCopy(c).slice(0,Math.min(count,c.length));randomDrawState={active:true,selectedIds:selected.map(n=>n.id),count,scope};closeRandomDrawModal();renderNotes(selected);updateRandomFilterBar();window.scrollTo({top:0,behavior:'smooth'})}
-    function repeatRandomDraw(){randomDrawState.active?performRandomDraw(true):openRandomDrawModal()}
+    function performRandomDraw(reuse=false){const scope=reuse?randomDrawState.scope:(document.getElementById('random-draw-scope')?.value||'filtered'),count=reuse?randomDrawState.count:Math.max(1,Math.min(50,Number(document.getElementById('random-draw-count')?.value)||1)),c=getRandomCandidates(scope);if(!c.length)return alert(scope==='category'&&!activeCategoryFilterId?'請先在分類總覽選擇一個分類。':'目前範圍內沒有可以抽取的筆記。');const selected=shuffledCopy(c).slice(0,Math.min(count,c.length));randomDrawState={active:true,selectedIds:selected.map(n=>n.id),count,scope,sessionId:noteDrawLog.record(selected,scope)};closeRandomDrawModal();renderNotes(selected);updateRandomFilterBar();window.scrollTo({top:0,behavior:'smooth'})}
+    function repeatRandomDraw(){randomDrawState.active&&randomDrawState.scope!=='review'?performRandomDraw(true):openRandomDrawModal()}
     function clearRandomDraw(refresh=true){randomDrawState.active=false;randomDrawState.selectedIds=[];updateRandomFilterBar();if(refresh)filterNotes()}
-    function updateRandomFilterBar(){const bar=document.getElementById('active-random-filter-bar');if(!bar)return;bar.classList.toggle('hidden',!randomDrawState.active);if(!randomDrawState.active)return;const count=randomDrawState.selectedIds.filter(id=>notesData.some(n=>n.id===id)).length,cat=getCategoryById(activeCategoryFilterId),label={filtered:'目前篩選結果',all:'全部筆記',starred:'星號筆記',category:cat?`分類「${cat.name}」`:'分類筆記'}[randomDrawState.scope]||'筆記';document.getElementById('active-random-summary').textContent=`已從${label}隨機抽出 ${count} 則完整筆記`}
+    function updateRandomFilterBar(){const bar=document.getElementById('active-random-filter-bar');if(!bar)return;bar.classList.toggle('hidden',!randomDrawState.active);if(!randomDrawState.active)return;const count=randomDrawState.selectedIds.filter(id=>notesData.some(n=>n.id===id)).length,cat=getCategoryById(activeCategoryFilterId),label={filtered:'目前篩選結果',all:'全部筆記',starred:'星號筆記',category:cat?`分類「${cat.name}」`:'分類筆記'}[randomDrawState.scope]||'筆記';document.getElementById('active-random-summary').textContent=randomDrawState.scope==='review'?`正在看：${randomDrawState.reviewLabel||'抽取記錄'}（${count} 則）`:`已從${label}隨機抽出 ${count} 則完整筆記`}
 
     function executeSwap() {
         if (previewModeBlocksEditing()) return;
@@ -3227,6 +3237,7 @@ const noteActions = (() => {
                             : `<div class="note-text" id="text-${escapeAttribute(note.id)}" style="display:none;"></div>`
                     }
                     ${imagesHtml}
+                    ${randomDrawState.active && randomDrawState.selectedIds.some(id => String(id) === String(note.id)) ? noteDrawLog.markBarHtml(note.id) : ''}
                 </div>
 
                 <div class="note-actions">
@@ -6654,6 +6665,12 @@ function createNoteChunkCloud(options){return createNoteDriveCloud(options);}
                     for(const[key,item]of prior)if(!localItems.has(key)&&same(items.get(key),item))items.delete(key);
                     result.set(id,{...n,records:[...items.values()]});continue;
                 }
+                if(id===DRAW_LOG_SYSTEM_ID){
+                    // 抽取記錄: one entry per draw; keep both devices' draws, newer edit of the same draw wins.
+                    const items=new Map((cloud?.records||[]).map(x=>[x.id,x]));
+                    for(const x of n.records||[]){const c=items.get(x.id);if(!c||(Date.parse(x.updatedAt)||0)>=(Date.parse(c.updatedAt)||0))items.set(x.id,x);}
+                    result.set(id,{...n,records:[...items.values()]});continue;
+                }
                 if(id===HISTORY_SYSTEM_ID){
                     const items=new Map((cloud?.records||[]).map(x=>[x.id,x]));for(const x of n.records||[])items.set(x.id,x);result.set(id,{...n,records:[...items.values()]});continue;
                 }
@@ -6691,7 +6708,7 @@ function createNoteChunkCloud(options){return createNoteDriveCloud(options);}
                     if(!current||(Date.parse(note.record.updatedAt||note.record.capturedAt)||0)>(Date.parse(current.record.updatedAt||current.record.capturedAt)||0))mergedMap.set(note.id,note);
                     continue;
                 }
-                if(note.id===HISTORY_SYSTEM_ID||note.id===CATEGORY_SYSTEM_ID||sameNote(note,remoteMap.get(note.id)))continue;
+                if(note.id===HISTORY_SYSTEM_ID||note.id===CATEGORY_SYSTEM_ID||note.id===DRAW_LOG_SYSTEM_ID||sameNote(note,remoteMap.get(note.id)))continue;
                 const id=uid(),now=new Date().toISOString();
                 mergedMap.set(NOTE_RECOVERY_ID+':'+id,{id:NOTE_RECOVERY_ID+':'+id,_type:'system-recovery',record:{id,noteId:note.id,kind:'version',capturedAt:now,updatedAt:now,reason:'升級前本機內容與雲端不同，已保留供還原',snapshot:note,index:saved.workspace.indexOf(note),categories:categories.filter(category=>(note.categoryIds||[]).includes(category.id))}});
                 recovered++;
@@ -6882,7 +6899,7 @@ function createNoteChunkCloud(options){return createNoteDriveCloud(options);}
                 if(history)history.records=[...historyMap.values()];
                 const byId=new Map(next.map(n=>[JSON.stringify(n.id),n]));
                 for(const original of incoming){
-                    if(original.id===CATEGORY_SYSTEM_ID||original.id===HISTORY_SYSTEM_ID)continue;
+                    if(original.id===CATEGORY_SYSTEM_ID||original.id===HISTORY_SYSTEM_ID||original.id===DRAW_LOG_SYSTEM_ID)continue;
                     if(isRecoveryCarrier(original)){
                         const existing=next.find(n=>n.id===original.id);
                         if(!existing)next.push(original);
@@ -6897,7 +6914,7 @@ function createNoteChunkCloud(options){return createNoteDriveCloud(options);}
                     if(byId.has(JSON.stringify(copyId))){result.unchanged++;continue;}
                     const copy={...note,id:copyId,title:(note.title||'未命名筆記')+'（JSON 備份副本）'};next.push(copy);byId.set(JSON.stringify(copyId),copy);result.copies++;
                 }
-            }else result.added=incoming.filter(n=>n.id!==CATEGORY_SYSTEM_ID&&n.id!==HISTORY_SYSTEM_ID&&!isRecoveryCarrier(n)).length;
+            }else result.added=incoming.filter(n=>n.id!==CATEGORY_SYSTEM_ID&&n.id!==HISTORY_SYSTEM_ID&&n.id!==DRAW_LOG_SYSTEM_ID&&!isRecoveryCarrier(n)).length;
             noteDriveCheckSignal(signal);
             normalizeLoadedData(next);workspace=packPayload();seq++;dirty=true;touch();refreshUi();await synchronize();
             if(cloudError||dirty)throw new Error(cloudError||'匯入資料尚未完全同步，本機草稿已保留。');
@@ -7781,6 +7798,143 @@ const noteRecovery = (() => {
     return {initialize,load,carriers,beforeEdit,trash,open,restore,render,entries:()=>copy(entries)};
 })();
 
+/* Source: 87-draw-log.js */
+/* 抽取記錄 — every random draw is remembered (time, range, which notes), and each drawn
+ * note can be marked 熟 / 不熟. Stored with the notes in Google Drive, so it is the same
+ * on phone and computer. Kept for 180 days. Marks never change how notes are drawn. */
+const noteDrawLog = (() => {
+    'use strict';
+    const KEEP_DAYS = 180, KEEP_SESSIONS = 1500;
+    const SCOPE_LABEL = {filtered: '目前篩選結果', all: '全部筆記', starred: '星號筆記', category: '分類筆記', review: '複習'};
+    let filter = 'all';
+    const uid = () => crypto.randomUUID?.() || Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+
+    const dayKey = iso => {const d = new Date(iso); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');};
+    const today = () => dayKey(new Date().toISOString());
+    const noteById = id => notesData.find(n => String(n.id) === String(id));
+    const noteLabel = note => note ? (note.title || notePlainText(note.text || '').slice(0, 40) || '（沒有文字的筆記）') : '（這則筆記已刪除）';
+
+    function normalize(records) {
+        if (!Array.isArray(records)) return [];
+        return records.filter(s => s && typeof s.id === 'string' && !Number.isNaN(Date.parse(s.at)) && Array.isArray(s.items))
+            .map(s => ({id: s.id, at: s.at, scope: String(s.scope || ''), categoryName: s.categoryName ? String(s.categoryName).slice(0, 40) : undefined,
+                updatedAt: s.updatedAt || s.at,
+                items: s.items.filter(i => i && i.noteId != null).map(i => ({noteId: String(i.noteId), mark: i.mark === 'known' || i.mark === 'unknown' ? i.mark : null, markedAt: i.markedAt || null}))}));
+    }
+    function prune(list) {
+        const limit = Date.now() - KEEP_DAYS * 86400000;
+        return list.filter(s => Date.parse(s.at) >= limit).sort((a, b) => a.at.localeCompare(b.at)).slice(-KEEP_SESSIONS);
+    }
+    function record(selected, scope) {
+        const now = new Date().toISOString(), id = 'draw-' + uid();
+        const cat = scope === 'category' ? getCategoryById(activeCategoryFilterId) : null;
+        drawLog.push({id, at: now, updatedAt: now, scope, ...(cat ? {categoryName: cat.name} : {}), items: selected.map(n => ({noteId: String(n.id), mark: null, markedAt: null}))});
+        drawLog = prune(drawLog);
+        autoSave();
+        refreshEntry();
+        return id;
+    }
+    /* Which draw does a mark belong to: the draw on screen, otherwise the latest one with this note. */
+    function sessionFor(noteId) {
+        const current = drawLog.find(s => s.id === randomDrawState.sessionId && s.items.some(i => i.noteId === String(noteId)));
+        return current || [...drawLog].reverse().find(s => s.items.some(i => i.noteId === String(noteId)));
+    }
+    function markOf(noteId) {return sessionFor(noteId)?.items.find(i => i.noteId === String(noteId))?.mark || null;}
+    function mark(noteId, value) {
+        const session = sessionFor(noteId);
+        if (!session) return;
+        const item = session.items.find(i => i.noteId === String(noteId));
+        const now = new Date().toISOString();
+        item.mark = item.mark === value ? null : value;   // pressing the same button again clears it
+        item.markedAt = item.mark ? now : null;
+        session.updatedAt = now;
+        autoSave();
+        document.querySelectorAll('[data-draw-mark="' + CSS.escape(String(noteId)) + '"]').forEach(bar => paintBar(bar, item.mark));
+        if (document.getElementById('drawLogModal')?.classList.contains('active')) render();
+        refreshEntry();
+    }
+    function paintBar(bar, value) {
+        bar.dataset.mark = value || '';
+        bar.querySelectorAll('button[data-mark]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mark === value)));
+    }
+    function markBarHtml(noteId) {
+        const value = markOf(noteId), id = escapeAttribute(String(noteId));
+        return `<div class="draw-mark" data-draw-mark="${id}" data-mark="${value || ''}"><span>這則熟嗎？</span>` +
+            `<button type="button" data-mark="known" aria-pressed="${value === 'known'}" data-on-click="markDrawnNote" data-args="[${inlineJsArgument(noteId)},&quot;known&quot;]" data-stop>熟</button>` +
+            `<button type="button" data-mark="unknown" aria-pressed="${value === 'unknown'}" data-on-click="markDrawnNote" data-args="[${inlineJsArgument(noteId)},&quot;unknown&quot;]" data-stop>不熟</button></div>`;
+    }
+    function todayUnknownIds() {
+        const ids = [];
+        for (const s of drawLog) if (dayKey(s.at) === today()) for (const i of s.items) if (i.mark === 'unknown' && !ids.includes(i.noteId) && noteById(i.noteId)) ids.push(i.noteId);
+        return ids.filter(id => markOf(id) === 'unknown');
+    }
+    function show(ids, label, sessionId = null) {
+        const list = ids.filter(id => noteById(id));
+        if (!list.length) {showPreviewModeToast('這裡沒有可以顯示的筆記（可能已刪除）。'); return;}
+        closeDrawLogModal();
+        randomDrawState = {active: true, selectedIds: list.map(id => noteById(id).id), count: randomDrawState.count || 1, scope: 'review', reviewLabel: label, sessionId};
+        renderNotes(list.map(noteById));
+        updateRandomFilterBar();
+        window.scrollTo({top: 0, behavior: 'smooth'});
+    }
+    function dayTitle(key) {
+        const d = new Date(key + 'T00:00:00'), t = new Date(today() + 'T00:00:00'), diff = Math.round((t - d) / 86400000);
+        const week = '日一二三四五六'[d.getDay()];
+        return (diff === 0 ? '今天' : diff === 1 ? '昨天' : (d.getMonth() + 1) + '月' + d.getDate() + '日') + '（週' + week + '）';
+    }
+    function render() {
+        const box = document.getElementById('draw-log-list');
+        if (!box) return;
+        document.querySelectorAll('#drawLogModal [data-draw-filter]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.drawFilter === filter)));
+        const unknownToday = todayUnknownIds();
+        const todayBtn = document.getElementById('draw-log-today-unknown');
+        todayBtn.disabled = !unknownToday.length;
+        todayBtn.textContent = unknownToday.length ? '顯示今天不熟的 ' + unknownToday.length + ' 則' : '今天沒有標記不熟的筆記';
+        const sessions = [...drawLog].reverse().filter(s => filter === 'all' || s.items.some(i => i.mark === 'unknown'));
+        if (!sessions.length) {box.innerHTML = '<p class="draw-log-empty">' + (filter === 'all' ? '還沒有抽取記錄。抽一次筆記後就會出現在這裡。' : '沒有標記為「不熟」的筆記。') + '</p>'; return;}
+        let html = '', lastDay = '';
+        for (const s of sessions) {
+            const key = dayKey(s.at);
+            if (key !== lastDay) {html += '<h4 class="draw-log-day">' + escapeHtml(dayTitle(key)) + '</h4>'; lastDay = key;}
+            const time = new Date(s.at).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false});
+            const scope = s.scope === 'category' && s.categoryName ? '分類「' + s.categoryName + '」' : (SCOPE_LABEL[s.scope] || '筆記');
+            const items = s.items.filter(i => filter === 'all' || i.mark === 'unknown');
+            const known = s.items.filter(i => i.mark === 'known').length, unknown = s.items.filter(i => i.mark === 'unknown').length;
+            html += '<section class="draw-log-session"><div class="draw-log-head"><b>' + escapeHtml(time) + '</b><span>從' + escapeHtml(scope) + '抽 ' + s.items.length + ' 則' +
+                (known || unknown ? '・熟 ' + known + '・不熟 ' + unknown : '') + '</span>' +
+                '<button type="button" data-on-click="showDrawSession" data-args="[' + inlineJsArgument(s.id) + ']">再看這次</button></div><ul>';
+            for (const i of items) {
+                const note = noteById(i.noteId);
+                const badge = i.mark === 'known' ? '<em class="is-known">熟</em>' : i.mark === 'unknown' ? '<em class="is-unknown">不熟</em>' : '<em>未標記</em>';
+                html += '<li>' + badge + (note ? '<button type="button" class="draw-log-note" data-on-click="locateDrawLogNote" data-args="[' + inlineJsArgument(i.noteId) + ']">' + escapeHtml(noteLabel(note)) + '</button>' : '<span class="draw-log-gone">' + noteLabel(null) + '</span>') + '</li>';
+            }
+            html += '</ul></section>';
+        }
+        box.innerHTML = html;
+    }
+    /* Small summary on the 隨機抽筆記 window's entry button. */
+    function refreshEntry() {
+        const button = document.getElementById('btn-open-draw-log');
+        if (!button) return;
+        const todays = drawLog.filter(s => dayKey(s.at) === today());
+        const unknown = todayUnknownIds().length;
+        button.textContent = '抽取記錄' + (todays.length ? '（今天 ' + todays.length + ' 次' + (unknown ? '、' + unknown + ' 則不熟' : '') + '）' : '');
+    }
+    function open() {filter = 'all'; render(); document.getElementById('drawLogModal').classList.add('active');}
+    return {normalize, prune, record, mark, markBarHtml, markOf, open, render, refreshEntry, todayUnknownIds, show, setFilter: value => {filter = value === 'unknown' ? 'unknown' : 'all'; render();},
+        session: id => drawLog.find(s => s.id === id)};
+})();
+
+function openDrawLogModal() {closeRandomDrawModal(); noteDrawLog.open();}
+function closeDrawLogModal() {document.getElementById('drawLogModal')?.classList.remove('active');}
+function markDrawnNote(noteId, value) {noteDrawLog.mark(noteId, value);}
+function setDrawLogFilter(value) {noteDrawLog.setFilter(value);}
+function showTodayUnknownNotes() {noteDrawLog.show(noteDrawLog.todayUnknownIds(), '今天不熟的筆記');}
+function showDrawSession(id) {
+    const s = noteDrawLog.session(id);
+    if (s) noteDrawLog.show(s.items.map(i => i.noteId), new Date(s.at).toLocaleString('zh-TW', {month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false}) + ' 抽到的筆記', s.id);
+}
+function locateDrawLogNote(id) {closeDrawLogModal(); locateHistoryNote(id);}
 /* Source: 88-image-preferences.js */
 /* Image annotation preferences are independent of note text colors and note/image data. */
 const noteImagePalette=Object.freeze(['#ef4444','#facc15','#22c55e','#2563eb','#8b5cf6','#111827','#ffffff']);

@@ -92,7 +92,7 @@ try {
     const heads = headFiles();
     check(heads.length >= 1, 'a version (head) file was written: ' + heads.length);
     const head = JSON.parse(heads.at(-1).content.toString());
-    check(head.count === 18, 'head counts 18 records (16 notes + categories + edit history): ' + head.count);
+    check(head.count === 19, 'head counts 19 records (16 notes + categories + edit history + draw log): ' + head.count);
     const pointer = [...drive.files.values()].find(f => f.name === 'nd-pointer-pharmacology.json');
     check(pointer && JSON.parse(pointer.content).revision === head.revision, 'pointer file points at newest version');
     const assets = [...drive.files.values()].filter(f => f.name.startsWith('nd-asset-'));
@@ -228,6 +228,37 @@ try {
     await page.waitForTimeout(500);
     await page.evaluate(() => closeModal()); await page.waitForTimeout(300);
     check(await page.evaluate(() => !noteImageEditor.isOpen() && !document.querySelector('.modal-overlay.active')), 'studio and editor closed');
+    // 抽取記錄: draw, mark, review, sync to another device.
+    await page.click('#btn-random-draw');
+    await page.fill('#random-draw-count', '3');
+    await page.selectOption('#random-draw-scope', 'all');
+    await page.click('#randomDrawModal .btn-save');
+    await page.waitForTimeout(500);
+    const bars = await page.$$eval('.note-item .draw-mark', l => l.map(b => b.dataset.drawMark));
+    check(bars.length === 3, '3 drawn notes each show 熟／不熟 buttons');
+    await page.click(`.draw-mark[data-draw-mark="${bars[0]}"] button[data-mark="unknown"]`);
+    await page.click(`.draw-mark[data-draw-mark="${bars[1]}"] button[data-mark="known"]`);
+    check(await page.getAttribute(`.draw-mark[data-draw-mark="${bars[0]}"] button[data-mark="unknown"]`, 'aria-pressed') === 'true', '不熟 button shows as pressed');
+    await page.click('#active-random-filter-bar [data-on-click="openDrawLogModal"]');
+    await page.waitForTimeout(300);
+    const logText = await page.textContent('#draw-log-list');
+    check(/今天/.test(logText) && /抽 3 則/.test(logText) && /熟 1・不熟 1/.test(logText), 'log window lists today\'s draw with marks');
+    await page.click('#drawLogModal [data-draw-filter="unknown"]');
+    check((await page.$$('#draw-log-list li')).length === 1, '只看不熟 shows only the 不熟 note');
+    await page.click('#draw-log-today-unknown');
+    await page.waitForTimeout(400);
+    check((await page.$$('#note-list .note-item')).length === 1 && /正在看：今天不熟的筆記/.test(await page.textContent('#active-random-summary')), '顯示今天不熟的 shows that note on the main screen');
+    await page.evaluate(() => clearRandomDraw());
+    await page.waitForFunction(() => document.getElementById('sync-status')?.dataset.syncState === 'success', null, {timeout: 60000}).catch(() => {});
+    await page.waitForTimeout(1500);
+    {
+        const other = await open('device2');
+        await signInAndWait(other.page);
+        await other.page.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
+        const synced = await other.page.evaluate(() => ({sessions: drawLog.length, unknown: noteDrawLog.todayUnknownIds().length, marks: drawLog.at(-1)?.items.map(i => i.mark)}));
+        check(synced.sessions >= 1 && synced.unknown === 1 && synced.marks.filter(Boolean).length === 2, 'draw log and marks sync to another device: ' + JSON.stringify(synced));
+        await other.context.close();
+    }
     // 捲動載入: 20 notes first, more while scrolling.
     await page.waitForFunction(() => document.getElementById('sync-status')?.dataset.syncState === 'success', null, {timeout: 60000}).catch(() => {});
     await page.waitForTimeout(1000);

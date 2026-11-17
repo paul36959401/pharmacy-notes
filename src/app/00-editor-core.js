@@ -128,6 +128,8 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
     let randomDrawState = { active:false, selectedIds:[], count:1, scope:'filtered' };
 
     const HISTORY_SYSTEM_ID = '__EDIT_HISTORY_V1__';
+    const DRAW_LOG_SYSTEM_ID = '__NOTE_DRAW_LOG_V1__';   // 抽取記錄 (random draw log)
+    let drawLog = [];
     const CATEGORY_SYSTEM_ID = '__NOTE_CATEGORIES_V1__';
     const PREVIEW_MODE_STORAGE_KEY = 'pharmacy-note-preview-mode-v1';
     const HISTORY_RETENTION_DAYS = 90;

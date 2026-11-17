@@ -550,6 +550,12 @@
                     for(const[key,item]of prior)if(!localItems.has(key)&&same(items.get(key),item))items.delete(key);
                     result.set(id,{...n,records:[...items.values()]});continue;
                 }
+                if(id===DRAW_LOG_SYSTEM_ID){
+                    // 抽取記錄: one entry per draw; keep both devices' draws, newer edit of the same draw wins.
+                    const items=new Map((cloud?.records||[]).map(x=>[x.id,x]));
+                    for(const x of n.records||[]){const c=items.get(x.id);if(!c||(Date.parse(x.updatedAt)||0)>=(Date.parse(c.updatedAt)||0))items.set(x.id,x);}
+                    result.set(id,{...n,records:[...items.values()]});continue;
+                }
                 if(id===HISTORY_SYSTEM_ID){
                     const items=new Map((cloud?.records||[]).map(x=>[x.id,x]));for(const x of n.records||[])items.set(x.id,x);result.set(id,{...n,records:[...items.values()]});continue;
                 }
@@ -587,7 +593,7 @@
                     if(!current||(Date.parse(note.record.updatedAt||note.record.capturedAt)||0)>(Date.parse(current.record.updatedAt||current.record.capturedAt)||0))mergedMap.set(note.id,note);
                     continue;
                 }
-                if(note.id===HISTORY_SYSTEM_ID||note.id===CATEGORY_SYSTEM_ID||sameNote(note,remoteMap.get(note.id)))continue;
+                if(note.id===HISTORY_SYSTEM_ID||note.id===CATEGORY_SYSTEM_ID||note.id===DRAW_LOG_SYSTEM_ID||sameNote(note,remoteMap.get(note.id)))continue;
                 const id=uid(),now=new Date().toISOString();
                 mergedMap.set(NOTE_RECOVERY_ID+':'+id,{id:NOTE_RECOVERY_ID+':'+id,_type:'system-recovery',record:{id,noteId:note.id,kind:'version',capturedAt:now,updatedAt:now,reason:'升級前本機內容與雲端不同，已保留供還原',snapshot:note,index:saved.workspace.indexOf(note),categories:categories.filter(category=>(note.categoryIds||[]).includes(category.id))}});
                 recovered++;
@@ -778,7 +784,7 @@
                 if(history)history.records=[...historyMap.values()];
                 const byId=new Map(next.map(n=>[JSON.stringify(n.id),n]));
                 for(const original of incoming){
-                    if(original.id===CATEGORY_SYSTEM_ID||original.id===HISTORY_SYSTEM_ID)continue;
+                    if(original.id===CATEGORY_SYSTEM_ID||original.id===HISTORY_SYSTEM_ID||original.id===DRAW_LOG_SYSTEM_ID)continue;
                     if(isRecoveryCarrier(original)){
                         const existing=next.find(n=>n.id===original.id);
                         if(!existing)next.push(original);
@@ -793,7 +799,7 @@
                     if(byId.has(JSON.stringify(copyId))){result.unchanged++;continue;}
                     const copy={...note,id:copyId,title:(note.title||'未命名筆記')+'（JSON 備份副本）'};next.push(copy);byId.set(JSON.stringify(copyId),copy);result.copies++;
                 }
-            }else result.added=incoming.filter(n=>n.id!==CATEGORY_SYSTEM_ID&&n.id!==HISTORY_SYSTEM_ID&&!isRecoveryCarrier(n)).length;
+            }else result.added=incoming.filter(n=>n.id!==CATEGORY_SYSTEM_ID&&n.id!==HISTORY_SYSTEM_ID&&n.id!==DRAW_LOG_SYSTEM_ID&&!isRecoveryCarrier(n)).length;
             noteDriveCheckSignal(signal);
             normalizeLoadedData(next);workspace=packPayload();seq++;dirty=true;touch();refreshUi();await synchronize();
             if(cloudError||dirty)throw new Error(cloudError||'匯入資料尚未完全同步，本機草稿已保留。');

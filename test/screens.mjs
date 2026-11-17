@@ -77,6 +77,16 @@ try {
             await page.evaluate(() => openEditModal('n1'));
             await page.waitForTimeout(1500);
             await page.screenshot({path: `${out}/${name}-${scheme}-editor.png`});
+            if (scheme === 'light') {
+                await page.evaluate(() => closeModal()); await page.waitForTimeout(300);
+                await page.evaluate(() => {document.getElementById('random-draw-count').value = 2; document.getElementById('random-draw-scope').value = 'all'; performRandomDraw();});
+                await page.waitForTimeout(600);
+                await page.evaluate(() => {const b = document.querySelector('.draw-mark button[data-mark="unknown"]'); b.click(); b.scrollIntoView({block: 'center'});});
+                await page.waitForTimeout(300);
+                await page.screenshot({path: `${out}/${name}-draw-marks.png`});
+                await page.evaluate(() => openDrawLogModal()); await page.waitForTimeout(400);
+                await page.screenshot({path: `${out}/${name}-draw-log.png`});
+            }
             await context.close();
         }
     }

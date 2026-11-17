@@ -178,6 +178,7 @@
                             : `<div class="note-text" id="text-${escapeAttribute(note.id)}" style="display:none;"></div>`
                     }
                     ${imagesHtml}
+                    ${randomDrawState.active && randomDrawState.selectedIds.some(id => String(id) === String(note.id)) ? noteDrawLog.markBarHtml(note.id) : ''}
                 </div>
 
                 <div class="note-actions">
