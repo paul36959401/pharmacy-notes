@@ -1490,6 +1490,22 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
 
 
 /* Source: 05-content-safety.js */
+/* Typing pause: heavy background work (cloud read-back, re-processing notes) waits until
+   the writer has not typed for a moment, so keystrokes are never held up. Saving to this
+   device still happens immediately; only the cloud confirmation is delayed. */
+let noteLastTypingAt = 0;
+document.addEventListener('keydown', event => {if (event.target?.closest?.('#noteModal')) noteLastTypingAt = performance.now();}, true);
+document.addEventListener('input', event => {if (event.target?.closest?.('#noteModal')) noteLastTypingAt = performance.now();}, true);
+function noteTypingIdle(quiet = 1200, maxWait = 15000) {
+    const start = performance.now();
+    const typing = () => document.getElementById('noteModal')?.classList.contains('active') && performance.now() - noteLastTypingAt < quiet;
+    if (!typing()) return Promise.resolve();
+    return new Promise(resolve => {
+        const check = () => (!typing() || performance.now() - start > maxWait) ? resolve() : setTimeout(check, 150);
+        setTimeout(check, 150);
+    });
+}
+
 /* Waits until an <img> has loaded. Used instead of noteImageReady(image), which can hang
    forever for off-screen images in some browsers (seen in the Claude desktop browser). */
 function noteImageReady(image, ms = 20000) {
@@ -1557,7 +1573,7 @@ const noteSafeContent = (() => {
             }
         }
         const result = template.innerHTML;
-        if(source.length<2*1024*1024){cache.set(source,result);cacheSize+=source.length+result.length;while(cache.size>80||cacheSize>4*1024*1024){const key=cache.keys().next().value;cacheSize-=key.length+cache.get(key).length;cache.delete(key);}}
+        if(source.length<2*1024*1024){cache.set(source,result);cacheSize+=source.length+result.length;while(cache.size>8000||cacheSize>48*1024*1024){const key=cache.keys().next().value;cacheSize-=key.length+cache.get(key).length;cache.delete(key);}}
         return result;
     }
     function note(record) {
@@ -1757,6 +1773,7 @@ const noteActions = (() => {
     }
 
     function normalizeLoadedData(data) {
+        const previousNotes = new Map(notesData.map(note => [String(note.id), note]));
         let rawNotes = [];
         if (Array.isArray(data)) rawNotes = data;
         else if (data && Array.isArray(data.notes)) rawNotes = data.notes;
@@ -1814,6 +1831,12 @@ const noteActions = (() => {
                 return created?.id || null;
             }).filter((id, index, arr) => id && arr.indexOf(id) === index);
             delete note.categories;
+        });
+        // Keep the same object for notes whose content did not change, so the save
+        // step can reuse its earlier work instead of re-processing every note.
+        notesData = notesData.map(note => {
+            const previous = previousNotes.get(String(note.id));
+            return previous && previous !== note && JSON.stringify(previous) === JSON.stringify(note) ? previous : note;
         });
         pruneHistory();
     }
@@ -6726,7 +6749,7 @@ function createNoteChunkCloud(options){return createNoteDriveCloud(options);}
                 if(!ready||forceRead){
                     cloudStage='讀取雲端筆記';status();
                     const upgrade=await protectUpgradeSnapshot();
-                    const remote=await fetchBackend('GET',null,null,true);checkpoint();
+                    const remote=await fetchBackend('GET',null,null,true);await noteTypingIdle();checkpoint();
                     const local=workspace,old=base,hadLocal=dirty;
                     normalizeLoadedData(remote);const remotePacked=packPayload();
                     const merged=preserveUpgradeDifferences(upgrade,remotePacked,hadLocal?merge(local,old,remotePacked):remotePacked);
@@ -6743,7 +6766,9 @@ function createNoteChunkCloud(options){return createNoteDriveCloud(options);}
                     cloudStage='上傳筆記';status();await fetchBackend('POST',compacted.notes,chunkCloud.isSupported()?sent:null);
                     // 成功回覆後重新讀回；不能只因 HTTP 200 就清掉尚未寫入的圖片草稿。
                     cloudStage='確認雲端已保存內容';status();
+                    await noteTypingIdle();
                     const confirmed=await fetchBackend('GET',null,null,true),list=Array.isArray(confirmed)?confirmed:confirmed.notes;
+                    await noteTypingIdle();
                     const confirmedMap=new Map(list.map(n=>[n.id,packNote(n)])),oldMap=new Map(previous.map(n=>[n.id,n]));
                     const submitted=compacted.notes.map(packNote);
                     if(submitted.length!==confirmedMap.size||submitted.some(n=>!matchesStoredNote(n,confirmedMap.get(n.id)))||previous.some(n=>!sent.some(x=>x.id===n.id)&&confirmedMap.has(n.id)))throw new Error('雲端回覆成功，但重新讀取的內容尚未完整包含這次修改。本機草稿仍保留，沒有標示為同步完成。');
@@ -9541,6 +9566,7 @@ const noteGalleryConverter = (() => {
         const button = document.getElementById('drive-gallery-convert'), message = document.getElementById('drive-message');
         if (!button) return;
         const refresh = () => {
+            if (!document.getElementById('drive-tools')?.open) return;
             const count = pending().length;
             button.hidden = !count;
             button.textContent = '把舊圖片區移進文字（' + count + ' 則）';
@@ -9582,7 +9608,9 @@ const noteLinkedImages = (() => {
     };
     const label = note => '「' + (note.title || notePlainText(note.text).slice(0, 20) || '未命名') + '」';
     function pending() {return notesData.filter(note => linkedIn(note.text).length);}
-    function count() {return notesData.reduce((n, note) => n + linkedIn(note.text).length, 0);}
+    // Cheap text scan (no HTML parsing): this runs whenever the save status changes.
+    const LINKED = /<img\b[^>]*?\ssrc\s*=\s*["']\s*https?:\/\//gi;
+    function count() {return notesData.reduce((n, note) => n + (String(note.text || '').match(LINKED) || []).length, 0);}
 
     /* The editor treats a downloaded copy as "the same image" as its web link (so it
        never stores duplicates), which means swapping it in the editor is not saved.
@@ -9639,6 +9667,7 @@ const noteLinkedImages = (() => {
         const button = document.getElementById('drive-linked-images'), message = document.getElementById('drive-message');
         if (!button) return;
         const refresh = () => {
+            if (!document.getElementById('drive-tools')?.open) return;   // only needed while the panel is open
             const n = count();
             button.hidden = !n;
             button.textContent = '把連結圖片存進雲端（' + n + ' 張）';

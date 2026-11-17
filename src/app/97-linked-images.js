@@ -16,7 +16,9 @@ const noteLinkedImages = (() => {
     };
     const label = note => '「' + (note.title || notePlainText(note.text).slice(0, 20) || '未命名') + '」';
     function pending() {return notesData.filter(note => linkedIn(note.text).length);}
-    function count() {return notesData.reduce((n, note) => n + linkedIn(note.text).length, 0);}
+    // Cheap text scan (no HTML parsing): this runs whenever the save status changes.
+    const LINKED = /<img\b[^>]*?\ssrc\s*=\s*["']\s*https?:\/\//gi;
+    function count() {return notesData.reduce((n, note) => n + (String(note.text || '').match(LINKED) || []).length, 0);}
 
     /* The editor treats a downloaded copy as "the same image" as its web link (so it
        never stores duplicates), which means swapping it in the editor is not saved.
@@ -73,6 +75,7 @@ const noteLinkedImages = (() => {
         const button = document.getElementById('drive-linked-images'), message = document.getElementById('drive-message');
         if (!button) return;
         const refresh = () => {
+            if (!document.getElementById('drive-tools')?.open) return;   // only needed while the panel is open
             const n = count();
             button.hidden = !n;
             button.textContent = '把連結圖片存進雲端（' + n + ' 張）';

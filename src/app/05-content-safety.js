@@ -1,4 +1,20 @@
 /* Source: 05-content-safety.js */
+/* Typing pause: heavy background work (cloud read-back, re-processing notes) waits until
+   the writer has not typed for a moment, so keystrokes are never held up. Saving to this
+   device still happens immediately; only the cloud confirmation is delayed. */
+let noteLastTypingAt = 0;
+document.addEventListener('keydown', event => {if (event.target?.closest?.('#noteModal')) noteLastTypingAt = performance.now();}, true);
+document.addEventListener('input', event => {if (event.target?.closest?.('#noteModal')) noteLastTypingAt = performance.now();}, true);
+function noteTypingIdle(quiet = 1200, maxWait = 15000) {
+    const start = performance.now();
+    const typing = () => document.getElementById('noteModal')?.classList.contains('active') && performance.now() - noteLastTypingAt < quiet;
+    if (!typing()) return Promise.resolve();
+    return new Promise(resolve => {
+        const check = () => (!typing() || performance.now() - start > maxWait) ? resolve() : setTimeout(check, 150);
+        setTimeout(check, 150);
+    });
+}
+
 /* Waits until an <img> has loaded. Used instead of noteImageReady(image), which can hang
    forever for off-screen images in some browsers (seen in the Claude desktop browser). */
 function noteImageReady(image, ms = 20000) {
@@ -66,7 +82,7 @@ const noteSafeContent = (() => {
             }
         }
         const result = template.innerHTML;
-        if(source.length<2*1024*1024){cache.set(source,result);cacheSize+=source.length+result.length;while(cache.size>80||cacheSize>4*1024*1024){const key=cache.keys().next().value;cacheSize-=key.length+cache.get(key).length;cache.delete(key);}}
+        if(source.length<2*1024*1024){cache.set(source,result);cacheSize+=source.length+result.length;while(cache.size>8000||cacheSize>48*1024*1024){const key=cache.keys().next().value;cacheSize-=key.length+cache.get(key).length;cache.delete(key);}}
         return result;
     }
     function note(record) {

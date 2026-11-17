@@ -611,7 +611,7 @@
                 if(!ready||forceRead){
                     cloudStage='讀取雲端筆記';status();
                     const upgrade=await protectUpgradeSnapshot();
-                    const remote=await fetchBackend('GET',null,null,true);checkpoint();
+                    const remote=await fetchBackend('GET',null,null,true);await noteTypingIdle();checkpoint();
                     const local=workspace,old=base,hadLocal=dirty;
                     normalizeLoadedData(remote);const remotePacked=packPayload();
                     const merged=preserveUpgradeDifferences(upgrade,remotePacked,hadLocal?merge(local,old,remotePacked):remotePacked);
@@ -628,7 +628,9 @@
                     cloudStage='上傳筆記';status();await fetchBackend('POST',compacted.notes,chunkCloud.isSupported()?sent:null);
                     // 成功回覆後重新讀回；不能只因 HTTP 200 就清掉尚未寫入的圖片草稿。
                     cloudStage='確認雲端已保存內容';status();
+                    await noteTypingIdle();
                     const confirmed=await fetchBackend('GET',null,null,true),list=Array.isArray(confirmed)?confirmed:confirmed.notes;
+                    await noteTypingIdle();
                     const confirmedMap=new Map(list.map(n=>[n.id,packNote(n)])),oldMap=new Map(previous.map(n=>[n.id,n]));
                     const submitted=compacted.notes.map(packNote);
                     if(submitted.length!==confirmedMap.size||submitted.some(n=>!matchesStoredNote(n,confirmedMap.get(n.id)))||previous.some(n=>!sent.some(x=>x.id===n.id)&&confirmedMap.has(n.id)))throw new Error('雲端回覆成功，但重新讀取的內容尚未完整包含這次修改。本機草稿仍保留，沒有標示為同步完成。');

@@ -104,6 +104,7 @@ try {
 
     // 2b. Convert old gallery images into the note text.
     await page.click('#drive-tools summary');
+    await page.waitForSelector('#drive-gallery-convert', {state: 'visible', timeout: 3000}).catch(() => {});
     check(await page.isVisible('#drive-gallery-convert'), 'gallery convert button shows: ' + await page.textContent('#drive-gallery-convert'));
     const totalsBefore = await page.evaluate(() => noteGalleryConverter.totals());
     await page.click('#drive-gallery-convert');

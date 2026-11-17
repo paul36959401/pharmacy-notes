@@ -59,6 +59,7 @@ const noteGalleryConverter = (() => {
         const button = document.getElementById('drive-gallery-convert'), message = document.getElementById('drive-message');
         if (!button) return;
         const refresh = () => {
+            if (!document.getElementById('drive-tools')?.open) return;
             const count = pending().length;
             button.hidden = !count;
             button.textContent = '把舊圖片區移進文字（' + count + ' 則）';

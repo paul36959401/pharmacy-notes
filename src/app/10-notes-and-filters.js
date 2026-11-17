@@ -10,6 +10,7 @@
     }
 
     function normalizeLoadedData(data) {
+        const previousNotes = new Map(notesData.map(note => [String(note.id), note]));
         let rawNotes = [];
         if (Array.isArray(data)) rawNotes = data;
         else if (data && Array.isArray(data.notes)) rawNotes = data.notes;
@@ -67,6 +68,12 @@
                 return created?.id || null;
             }).filter((id, index, arr) => id && arr.indexOf(id) === index);
             delete note.categories;
+        });
+        // Keep the same object for notes whose content did not change, so the save
+        // step can reuse its earlier work instead of re-processing every note.
+        notesData = notesData.map(note => {
+            const previous = previousNotes.get(String(note.id));
+            return previous && previous !== note && JSON.stringify(previous) === JSON.stringify(note) ? previous : note;
         });
         pruneHistory();
     }
