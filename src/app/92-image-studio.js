@@ -231,6 +231,10 @@ const noteImageStudio = (() => {
         for(const [name,key,test] of [['unlock-all','locked',true],['show-all','visible',false]]){const button=el('noteImageEditModal').querySelector('[data-studio-action="'+name+'"]');if(button)button.hidden=!s.doc?.objects.some(o=>o[key]===test);}
         el('studio-artboard').style.cursor=space||s.tool==='hand'?'grab':s.tool==='select'?'default':'crosshair';
     }
+    /* 連續繪製 (continuous drawing) setting, remembered on this device; on by default. */
+    function studioContinuous(){try{return localStorage.getItem('nd-studio-continuous')!=='0';}catch(_){return true;}}
+    function setStudioContinuous(on){try{localStorage.setItem('nd-studio-continuous',on?'1':'0');}catch(_){}const b=document.querySelector('[data-studio-continuous]');if(b)b.setAttribute('aria-pressed',String(on));}
+    document.addEventListener('click',event=>{const b=event.target.closest?.('[data-studio-continuous]');if(!b)return;setStudioContinuous(!studioContinuous());message(studioContinuous()?'連續繪製：開啟。畫完方框等形狀會留在同一個工具，按 Esc 或 V 回到選取。':'連續繪製：關閉。畫完一個形狀就回到選取。');});
     function setTool(tool){if(!session?.ready||session.busy)return;finishText();cancelGesture();session.tool=tool;session.selected=[];update();if(tool==='crop')fit();else schedule();message(({select:'拖曳選取；Shift 多選，Alt 選群組內物件。',hand:'拖曳移動畫布；滾輪縮放。',crop:'拖曳選取裁切範圍，設定比例後按「完成裁切」。',text:'點畫布新增文字，雙擊已有文字編輯。'})[tool]||'在畫布上拖曳新增'+(names[tool]||'標記')+'；按 V 返回選取。');}
     function setStyle(values){
         const s=session;if(!s?.ready||s.busy)return;const items=editable();
@@ -432,7 +436,8 @@ const noteImageStudio = (() => {
             const o=s.doc.objects.find(o=>o.id===g.objectId);
             if(o?.type==='pen'){const b=M.box(o.points);o.points=o.points.map(p=>({x:p.x-b.x,y:p.y-b.y}));o.matrix=M.mul(o.matrix,M.translate(b.x,b.y));o.w=Math.max(1,b.w);o.h=Math.max(1,b.h);}
             else if(Math.hypot(event.clientX-g.startClient.x,event.clientY-g.startClient.y)<3){s.doc=JSON.parse(g.before);s.selected=[];}
-            if(!['pen','highlight'].includes(s.tool))s.tool='select';
+            // 連續繪製: stay on the shape tool so several boxes can be drawn in a row.
+            if(!['pen','highlight'].includes(s.tool)&&!studioContinuous())s.tool='select';
         }
         commit(g.before);
     }
@@ -482,7 +487,7 @@ const noteImageStudio = (() => {
             if(event.shiftKey&&(document.activeElement===first||!el('noteImageEditModal').contains(document.activeElement))){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}return;
         }
         if(event.target===el('studio-text-editor')){if(event.key==='Escape'){event.preventDefault();finishText(true);}else if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();finishText();el('studio-artboard').focus();}return;}
-        if(event.key==='Escape'){event.preventDefault();if(s.imageCrop)closeImageCrop();else if(s.gesture)cancelGesture();else if(s.selected.length)setSelection([]);else close();return;}
+        if(event.key==='Escape'){event.preventDefault();if(s.imageCrop)closeImageCrop();else if(s.gesture)cancelGesture();else if(['arrow','rect','line','ellipse'].includes(s.tool))setTool('select');else if(s.selected.length)setSelection([]);else close();return;}
         if(s.imageCrop){if(event.key==='Enter'&&!inputTarget(event.target)){event.preventDefault();void action('crop-apply');}return;}
         if(inputTarget(event.target))return;const key=event.key.toLowerCase(),mod=event.ctrlKey||event.metaKey;
         if(mod&&(key==='c'||key==='v'||key==='x'))return;

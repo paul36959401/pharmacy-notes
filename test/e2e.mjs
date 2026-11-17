@@ -207,6 +207,27 @@ try {
     await page.click('#note-m2 [data-on-click="toggleStar"]').catch(async () => page.evaluate(() => document.querySelector('[data-on-click="toggleStar"][data-args*="m2"]')?.click()));
     await page.waitForTimeout(300);
     check(await page.evaluate(() => !!notesData.find(n => n.id === 'm2').starred) !== starBefore, 'star button toggles the star');
+    // Image studio: 連續繪製 keeps the box tool after drawing.
+    await page.evaluate(() => openEditModal('n1'));
+    await page.waitForFunction(() => document.getElementById('noteModal').classList.contains('active'));
+    await page.waitForTimeout(800);
+    await page.evaluate(() => {const img = document.querySelector('#modal-text img'); const wrapper = img.closest('[data-inline-image-wrapper],.inline-image-wrapper') || img; noteImageEditor.open({image: wrapper});});
+    await page.waitForFunction(() => noteImageEditor.isOpen() && !document.querySelector('#noteImageEditModal [data-studio-tool="rect"]').disabled, null, {timeout: 20000});
+    await page.waitForTimeout(800);
+    await page.click('#noteImageEditModal [data-studio-tool="rect"]');
+    const box = await page.locator('#studio-viewport').boundingBox();
+    const drag = async (x1, y1, x2, y2) => {await page.mouse.move(box.x + x1, box.y + y1); await page.mouse.down(); await page.mouse.move(box.x + x2, box.y + y2, {steps: 6}); await page.mouse.up(); await page.waitForTimeout(250);};
+    await drag(box.width * .30, box.height * .30, box.width * .45, box.height * .45);
+    await drag(box.width * .55, box.height * .55, box.width * .70, box.height * .70);
+    const studio = await page.evaluate(() => ({rectPressed: document.querySelector('#noteImageEditModal [data-studio-tool="rect"]').getAttribute('aria-pressed'), rects: (noteImageEditor.exportDraft?.()?.doc?.objects || []).filter(o => o.type === 'rect').length, shapes: document.querySelectorAll('#noteImageEditModal [data-studio-object]').length}));
+    console.log('studio', studio);
+    check(studio.rectPressed === 'true' && (studio.rects >= 2 || studio.shapes >= 2), 'box tool stays selected after drawing; two boxes drawn in a row');
+    await page.keyboard.press('Escape');
+    check(await page.evaluate(() => document.querySelector('#noteImageEditModal [data-studio-tool="select"]').getAttribute('aria-pressed')) === 'true', 'Esc returns to the select tool');
+    await page.evaluate(() => noteImageEditor.close(true));
+    await page.waitForTimeout(500);
+    await page.evaluate(() => closeModal()); await page.waitForTimeout(300);
+    check(await page.evaluate(() => !noteImageEditor.isOpen() && !document.querySelector('.modal-overlay.active')), 'studio and editor closed');
     // 捲動載入: 20 notes first, more while scrolling.
     await page.waitForFunction(() => document.getElementById('sync-status')?.dataset.syncState === 'success', null, {timeout: 60000}).catch(() => {});
     await page.waitForTimeout(1000);
