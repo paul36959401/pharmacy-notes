@@ -417,6 +417,25 @@ try {
         await page.setViewportSize({width: 390, height: 800}); await page.evaluate(() => {noteAi.open({text: 'Omeprazole', noteId: 'n1', quote: 'Omeprazole', prefix: '', suffix: ''}); noteAi.ask('「Omeprazole」：請條列說明分類、作用機轉、主要用途、重要副作用與交互作用，以及國考常考點。', 'quick');});
         await page.waitForTimeout(800); await page.screenshot({path: '/tmp/ai-phone.png'}); await page.evaluate(() => noteAi.close()); await page.setViewportSize({width: 1100, height: 900});
     }
+    // 使用說明書: version in the header, features/shortcuts, Q&A, update history, search.
+    {
+        const label = await page.textContent('#drive-manual');
+        check(/^v\d+・使用說明書$/.test(label), 'header shows the version and 使用說明書: ' + label);
+        await page.click('#drive-manual');
+        await page.waitForSelector('#manual-body .manual-table');
+        const features = await page.$$eval('#manual-body .manual-table tr', r => r.length);
+        await page.fill('#manual-search', '回到選取');
+        await page.waitForTimeout(100);
+        const found = await page.$eval('#manual-body', b => b.textContent);
+        await page.screenshot({path: '/tmp/manual.png'});
+        await page.click('[data-manual-tab="changelog"]');
+        await page.fill('#manual-search', '');
+        const current = await page.$eval('#manual-body', b => b.querySelector('.manual-release h4 span')?.textContent);
+        await page.click('[data-manual-tab="faq"]');
+        const faq = await page.$$eval('#manual-body details', d => d.length);
+        check(features > 40 && /按 V/.test(found) && current === '目前版本' && faq >= 10, 'manual lists features, finds 「回到選取」, marks the current version, has Q&A: ' + JSON.stringify({features, current, faq}));
+        await page.click('#manualModal .btn-cancel');
+    }
     // Sign-in renewal: with < 10 minutes left, the next button click renews it.
     {
         const other = await open('renew');

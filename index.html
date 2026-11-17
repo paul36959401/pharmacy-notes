@@ -12,10 +12,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="藥學筆記">
 <title>藥學筆記雲端</title>
-<link rel="stylesheet" href="css/app.css?v=2026-11-18-pages-v16">
-<link rel="stylesheet" href="css/icons.css?v=2026-11-18-pages-v16">
-<link rel="stylesheet" href="css/site.css?v=2026-11-18-pages-v16">
-<link rel="stylesheet" href="css/theme.css?v=2026-11-18-pages-v16">
+<link rel="stylesheet" href="css/app.css?v=2026-11-18-pages-v17">
+<link rel="stylesheet" href="css/icons.css?v=2026-11-18-pages-v17">
+<link rel="stylesheet" href="css/site.css?v=2026-11-18-pages-v17">
+<link rel="stylesheet" href="css/theme.css?v=2026-11-18-pages-v17">
 <script>/* apply the saved light/dark choice before the page draws */try{var c=localStorage.getItem('nd-theme')||'light';document.documentElement.dataset.theme=(c==='dark'||(c==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light';}catch(e){}</script>
 </head>
 <body>
@@ -34,7 +34,7 @@
 </div>
 
 <header class="drive-workspace">
-  <div class="drive-workspace-top"><label for="drive-book">藥學筆記</label><select id="drive-book" aria-label="切換科目"></select><a id="drive-open-book" hidden>開啟科目</a><span class="drive-private">私人 Google Drive</span></div>
+  <div class="drive-workspace-top"><label for="drive-book">藥學筆記</label><select id="drive-book" aria-label="切換科目"></select><a id="drive-open-book" hidden>開啟科目</a><button type="button" id="drive-manual" class="drive-manual" title="版本、功能與快捷鍵、Q&amp;A">使用說明書</button><span class="drive-private">私人 Google Drive</span></div>
   <details id="drive-tools"><summary>設定、匯入與儲存空間</summary><p id="drive-message" role="status">正在連線…</p><div class="drive-actions"><button id="drive-migrate" type="button" disabled hidden>從此科目的舊雲端搬移</button><button id="drive-import" type="button" disabled>匯入完整備份 JSON</button><button id="drive-linked-images" type="button" hidden>把連結圖片存進雲端</button><button id="drive-gallery-convert" type="button" hidden>把舊圖片區移進文字</button><button id="drive-convert" type="button" hidden>繼續搬移原圖</button><button id="drive-cancel" type="button" hidden>暫停搬移</button><button id="drive-backups" type="button">備份與還原</button><button id="drive-tidy" type="button">整理舊版本</button><button id="drive-quota" type="button">查看 Drive 空間</button></div><p id="drive-quota-text"></p><input id="drive-file" type="file" accept=".json,application/json" hidden></details>
 </header>
 <div id="drive-start-error" role="alert" hidden style="max-width:900px;box-sizing:border-box;margin:12px auto;padding:14px;border:1px solid #dc2626;border-radius:12px;background:#fff7f7;color:#991b1b"><p id="drive-start-error-text"></p><p>請複製此錯誤回報；既有雲端資料未被清除。</p><button id="drive-start-reload" type="button">重新載入</button></div>
@@ -374,6 +374,17 @@
     </div>
 </div>
 
+<div class="modal-overlay" id="manualModal" role="dialog" aria-modal="true" aria-labelledby="manual-title">
+    <div class="modal-content manual-content">
+        <h3 id="manual-title"><i class="fas fa-book-open"></i> 使用說明書 <span id="manual-version"></span></h3>
+        <div class="manual-toolbar">
+            <div class="manual-tabs" role="tablist"><button type="button" role="tab" data-manual-tab="features" aria-selected="true">功能與快捷鍵</button><button type="button" role="tab" data-manual-tab="faq" aria-selected="false">Q&amp;A</button><button type="button" role="tab" data-manual-tab="changelog" aria-selected="false">更新紀錄</button></div>
+            <input id="manual-search" type="search" placeholder="搜尋，例如：圖片、Alt、便條紙" aria-label="搜尋說明書">
+        </div>
+        <div id="manual-body" class="manual-body"></div>
+        <div class="modal-actions"><button class="btn-cancel" data-on-click="closeManualModal">關閉</button></div>
+    </div>
+</div>
 <div class="modal-overlay" id="backupModal" role="dialog" aria-modal="true" aria-labelledby="backup-title">
     <div class="modal-content backup-content">
         <h3 id="backup-title"><i class="fas fa-clock-rotate-left"></i> 備份與還原</h3>
@@ -403,9 +414,9 @@
     </div>
 </div>
 
-<script src="js/config.js?v=2026-11-18-pages-v16"></script>
-<script src="js/auth.js?v=2026-11-18-pages-v16"></script>
-<script src="js/drive-server.js?v=2026-11-18-pages-v16"></script>
-<script src="js/boot.js?v=2026-11-18-pages-v16"></script>
+<script src="js/config.js?v=2026-11-18-pages-v17"></script>
+<script src="js/auth.js?v=2026-11-18-pages-v17"></script>
+<script src="js/drive-server.js?v=2026-11-18-pages-v17"></script>
+<script src="js/boot.js?v=2026-11-18-pages-v17"></script>
 </body>
 </html>

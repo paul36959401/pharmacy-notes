@@ -389,3 +389,30 @@ html[data-theme="dark"] ::selection {
 .ai-pop .ai-body {line-height: 1.6;}
 .ai-pop footer {display: flex; justify-content: space-between; align-items: center; margin-top: 6px; color: #a8a29e; font-size: .78rem;}
 .ai-pop footer button {padding: 3px 10px; border: 1px solid #fca5a5; border-radius: 999px; background: #fff; color: #b91c1c; font: inherit; cursor: pointer;}
+
+/* ---------- 版本與使用說明書 ---------- */
+.drive-manual {padding: 5px 12px; border: 1px solid #99f6e4; border-radius: 999px; background: #f0fdfa; color: #0f766e; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap;}
+.drive-manual:hover {background: #ccfbf1;}
+.manual-content {max-width: 760px;}
+.manual-content h3 {color: #0f766e;}
+#manual-version {margin-left: 6px; color: #78716c; font-size: .85rem; font-weight: 400;}
+.manual-toolbar {display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 10px;}
+.manual-tabs {display: inline-flex; border: 1px solid #99f6e4; border-radius: 999px; overflow: hidden;}
+.manual-tabs button {padding: 6px 14px; border: 0; background: #fff; color: #0f766e; font: inherit; cursor: pointer;}
+.manual-tabs button[aria-selected="true"] {background: #0f766e; color: #fff;}
+#manual-search {flex: 1; min-width: 180px; max-width: 280px; padding: 7px 11px; border: 1px solid #d6d3d1; border-radius: 999px; font: inherit;}
+.manual-body {max-height: min(62vh, 620px); overflow: auto; padding-right: 4px; line-height: 1.6;}
+.manual-body h4 {margin: 14px 0 6px; color: #0f766e;}
+.manual-body h4:first-child {margin-top: 2px;}
+.manual-table {width: 100%; border-collapse: collapse; font-size: .92rem;}
+.manual-table th, .manual-table td {padding: 7px 9px; border-bottom: 1px solid #f0efed; text-align: left; vertical-align: top;}
+.manual-table th {width: 34%; color: #44403c; font-weight: 600;}
+.manual-body kbd {display: inline-block; min-width: 1.4em; padding: 0 5px; border: 1px solid #d6d3d1; border-bottom-width: 2px; border-radius: 5px; background: #fafaf9; font: 600 .82rem/1.5 ui-monospace, Menlo, Consolas, monospace; text-align: center;}
+.manual-faq {padding: 8px 2px; border-bottom: 1px solid #f0efed;}
+.manual-faq summary {font-weight: 600; cursor: pointer;}
+.manual-faq p {margin: 6px 0 2px 1em; color: #44403c;}
+.manual-release {padding: 4px 0 8px; border-bottom: 1px dashed #e7e5e4;}
+.manual-release h4 small {margin-left: 8px; color: #a8a29e; font-weight: 400;}
+.manual-release h4 span {margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #ccfbf1; color: #0f766e; font-size: .75rem;}
+.manual-release ul {margin: 0; padding-left: 1.2em;}
+.manual-empty {color: #78716c;}

@@ -41,6 +41,7 @@ const icons = {
     'copy': 'M9 9h11v11H9zM5 15H4V4h11v1',
     'clock-rotate-left': 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 2',
     'calendar-check': 'M4 5h16v15H4zM4 10h16M8 3v4M16 3v4M9 15l2 2 4-4',
+    'book-open': 'M12 6c-2-1.5-5-2-8-1.5V19c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V4.5c-3-.5-6 0-8 1.5zM12 6v14.5',
     'star': 'M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z'
 };
 const svg = d => `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='${d}'/></svg>`;
