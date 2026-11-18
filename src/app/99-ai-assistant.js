@@ -320,6 +320,8 @@ const noteAi = (() => {
                 star.setAttribute('aria-label', 'AI 便條紙 ' + group.ids.length + ' 張');
                 star.contentEditable = 'false';
                 if (group.ids.length > 1) star.dataset.count = String(group.ids.length);
+                const pos = group.ids.map(id => stickies.get(id)?.pos).find(p => p && Number.isFinite(p.x) && Number.isFinite(p.y));
+                if (pos) {star.style.translate = pos.x + 'px ' + pos.y + 'px'; star.dataset.moved = '1';}
                 target.append(star);
             }
         }
@@ -562,6 +564,56 @@ const noteAi = (() => {
         });
     }
 
+    /* ---------- moving a star (press and drag) ----------
+       A click still opens the sticky note; only a press that moves more than a few pixels
+       is a drag. The new place is saved with the sticky note (synced like the rest). */
+    function dragStar(event) {
+        const star = event.target.closest?.('.ai-sticky-star');
+        if (!star || event.button !== 0) return;
+        event.preventDefault();                                      // no text selection while dragging
+        const card = star.closest('.note-item') || document.body;
+        const scale = (star.getBoundingClientRect().width / star.offsetWidth) || 1;   // reading size zooms the note
+        const [bx, by] = (star.style.translate || '0px 0px').split(/\s+/).map(v => parseFloat(v) || 0);
+        const start = {x: event.clientX, y: event.clientY, rect: star.getBoundingClientRect(), box: card.getBoundingClientRect()};
+        let moved = false, nx = bx, ny = by;
+        star.setPointerCapture?.(event.pointerId);
+        const move = e => {
+            let dx = e.clientX - start.x, dy = e.clientY - start.y;
+            if (!moved && Math.hypot(dx, dy) < 5) return;
+            moved = true; star.classList.add('dragging'); closePop();
+            dx = Math.max(start.box.left + 2 - start.rect.left, Math.min(start.box.right - 2 - start.rect.right, dx));   // stay on the note
+            dy = Math.max(start.box.top + 2 - start.rect.top, Math.min(start.box.bottom - 2 - start.rect.bottom, dy));
+            nx = Math.round(bx + dx / scale); ny = Math.round(by + dy / scale);
+            star.style.translate = nx + 'px ' + ny + 'px';
+        };
+        const up = () => {
+            star.removeEventListener('pointermove', move); star.removeEventListener('pointerup', up); star.removeEventListener('pointercancel', up);
+            star.classList.remove('dragging');
+            if (!moved) return;
+            star.dataset.dragged = '1'; star.dataset.moved = '1';
+            setTimeout(() => {delete star.dataset.dragged;}, 400);
+            void savePos(star, {x: nx, y: ny});
+        };
+        star.addEventListener('pointermove', move); star.addEventListener('pointerup', up); star.addEventListener('pointercancel', up);
+    }
+    async function savePos(star, pos) {
+        const now = new Date().toISOString();
+        const changes = star.dataset.stickies.split(',').map(id => stickies.get(id)).filter(Boolean).map(item => ({...item, pos, updatedAt: now}));
+        changes.forEach(item => stickies.set(item.id, item));
+        try {await writeStickies(changes);} catch (_) {}   // offline / read-only: the star stays here for now
+    }
+    function dragPop(event) {
+        if (event.button !== 0 || event.target.closest('button')) return;
+        event.preventDefault();
+        const r = pop.getBoundingClientRect(), dx = event.clientX - r.left, dy = event.clientY - r.top;
+        const move = e => {
+            pop.style.left = Math.max(0, Math.min(innerWidth - 80, e.clientX - dx)) + 'px';
+            pop.style.top = Math.max(0, Math.min(innerHeight - 40, e.clientY - dy)) + 'px';
+        };
+        const up = () => {removeEventListener('pointermove', move); removeEventListener('pointerup', up);};
+        addEventListener('pointermove', move); addEventListener('pointerup', up);
+    }
+
     /* ---------- sticky-note popover ---------- */
     function closePop() {pop?.remove(); pop = null;}
     function openPop(star) {
@@ -570,7 +622,8 @@ const noteAi = (() => {
         if (!items.length) return;
         pop = document.createElement('div');
         pop.className = 'ai-pop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'AI 便條紙');
-        pop.innerHTML = '<header><b>✦ AI 便條紙</b><button type="button" data-pop="close" aria-label="關閉">✕</button></header>' +
+        pop.innerHTML = '<header title="按住這裡可以拖曳移動"><b>✦ AI 便條紙</b><span>' + (star.dataset.moved ? '<button type="button" data-pop="home" title="把星星移回段落右上角">星星歸位</button>' : '') +
+            '<button type="button" data-pop="close" aria-label="關閉">✕</button></span></header>' +
             (star.classList.contains('ai-sticky-loose') ? '<p class="ai-note">原本貼的文字已修改或刪除，所以移到筆記右上角。</p>' : '') +
             items.map(item => '<article data-sticky="' + escapeAttribute(item.id) + '"><p class="ai-quote">「' + escapeHtml(item.quote) + '」</p>' +
                 (item.question ? '<p class="ai-q">' + escapeHtml(item.question) + '</p>' : '') +
@@ -583,9 +636,11 @@ const noteAi = (() => {
         pop.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
         const below = r.bottom + 6, room = innerHeight - below - 8;
         pop.style.top = (room > 260 ? below : Math.max(8, r.top - 6 - Math.min(pop.offsetHeight, innerHeight * .7))) + 'px';
+        pop.querySelector('header').addEventListener('pointerdown', dragPop);
         pop.addEventListener('click', async event => {
             const action = event.target.closest('[data-pop]')?.dataset.pop;
             if (action === 'close') closePop();
+            if (action === 'home') {star.style.translate = ''; delete star.dataset.moved; closePop(); void savePos(star, null);}
             if (action === 'delete') {
                 const card = event.target.closest('[data-sticky]');
                 if (!confirm('要刪除這張 AI 便條紙嗎？（你的筆記內容不會受影響）')) return;
@@ -615,8 +670,9 @@ const noteAi = (() => {
         });
         document.addEventListener('click', event => {
             const star = event.target.closest('.ai-sticky-star');
-            if (star) {event.preventDefault(); event.stopPropagation(); openPop(star);}
+            if (star) {event.preventDefault(); event.stopPropagation(); if (!star.dataset.dragged) openPop(star);}
         }, true);
+        document.addEventListener('pointerdown', dragStar, true);
         const quick = document.getElementById('note-quick-actions');
         if (quick) {
             const button = document.createElement('button');

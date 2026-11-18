@@ -458,3 +458,10 @@ html[data-reading-line="wider"] #note-list .note-text {line-height: 2.3;}
 #sync-details .sync-plain {margin: 4px 0 6px; color: #334155;}
 #sync-details .sync-more summary {color: #64748b; cursor: pointer; font-size: 12px;}
 #sync-retry[hidden] {display: none;}
+
+/* AI 便條紙：星星可以按住拖曳；便條紙視窗可以拖標題列移動 */
+.ai-sticky-star {touch-action: none; cursor: grab;}
+.ai-sticky-star.dragging {cursor: grabbing; z-index: 6; box-shadow: 0 4px 12px rgba(180,83,9,.35); transform: scale(1.15);}
+.ai-pop header {cursor: move; user-select: none; -webkit-user-select: none; touch-action: none;}
+.ai-pop header span {display: flex; align-items: center; gap: 6px;}
+.ai-pop header button[data-pop="home"] {padding: 2px 9px; border: 1px solid #fcd34d; border-radius: 999px; background: #fff; color: #b45309; font-size: .78rem;}

@@ -394,6 +394,36 @@ try {
         const after = await page.evaluate(() => notesData.find(x => x.id === 'n1').text);
         const star = await page.evaluate(() => {const s = document.querySelector('#text-n1 .ai-sticky-star'); return s ? s.parentElement.tagName : null;});
         check(stickyFile().items.length === 1 && stickyFile().items[0].quote === 'Omeprazole' && after === before && star === 'P', 'sticky note saved separately; star on the paragraph; note text unchanged (' + star + ')');
+        // Stars can be dragged (saved with the sticky); a plain click still opens it; the popover can be moved; 星星歸位 resets.
+        {
+            await page.evaluate(() => noteAi.close());
+            await page.$eval('#text-n1 .ai-sticky-star', el => el.scrollIntoView({block: 'center'})); await page.waitForTimeout(200);
+            const s = await (await page.$('#text-n1 .ai-sticky-star')).boundingBox();
+            await page.mouse.move(s.x + 10, s.y + 10); await page.mouse.down();
+            await page.mouse.move(s.x - 40, s.y + 30, {steps: 6}); await page.mouse.move(s.x - 120, s.y + 60, {steps: 6});
+            await page.mouse.up();
+            await page.waitForTimeout(800);
+            const moved = await page.evaluate(() => ({translate: document.querySelector('#text-n1 .ai-sticky-star').style.translate, pop: !!document.querySelector('.ai-pop')}));
+            const saved = stickyFile().items[0].pos;
+            check(/^-\d+px \d+px$/.test(moved.translate) && !moved.pop && saved && saved.x < -100 && saved.y > 40, 'dragging a star moves it, does not open it, and saves the place: ' + JSON.stringify({moved, saved}));
+            await page.reload(); await signInAndWait(page);
+            await page.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
+            if (!await page.$('#text-n1')) {await page.fill('#search-input', 'Omeprazole'); await page.waitForTimeout(800);}
+            await page.waitForSelector('#text-n1 .ai-sticky-star', {timeout: 20000});
+            const kept = await page.$eval('#text-n1 .ai-sticky-star', el => el.style.translate);
+            await page.$eval('#text-n1 .ai-sticky-star', el => el.scrollIntoView({block: 'center'})); await page.waitForTimeout(200);
+            await page.click('#text-n1 .ai-sticky-star');
+            await page.waitForSelector('.ai-pop header');
+            const h = await (await page.$('.ai-pop header b')).boundingBox(), before = await (await page.$('.ai-pop')).boundingBox();
+            await page.mouse.move(h.x + 5, h.y + 5); await page.mouse.down(); await page.mouse.move(h.x + 5 - 150, h.y + 5 + 80, {steps: 5}); await page.mouse.up();
+            const after = await (await page.$('.ai-pop')).boundingBox();
+            await page.click('.ai-pop [data-pop="home"]');
+            await page.waitForTimeout(800);
+            const home = await page.$eval('#text-n1 .ai-sticky-star', el => el.style.translate);
+            check(kept === moved.translate && Math.round(before.x - after.x) === 150 && Math.round(after.y - before.y) === 80 && home === '' && stickyFile().items[0].pos === null,
+                'moved star stays after reopening; popover drags by its title; 星星歸位 resets: ' + JSON.stringify({kept, dx: before.x - after.x, home}));
+            await page.evaluate(() => noteAi.open({text: 'Omeprazole', noteId: 'n1', quote: 'Omeprazole', prefix: '', suffix: ''}));
+        }
         // Same question again: remembered, no new request.
         await page.click('[data-ai-quick="0"]');
         await page.waitForSelector('.ai-bot:last-child .ai-note', {timeout: 5000});
