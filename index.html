@@ -12,10 +12,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="藥學筆記">
 <title>藥學筆記雲端</title>
-<link rel="stylesheet" href="css/app.css?v=2026-11-19-pages-v20">
-<link rel="stylesheet" href="css/icons.css?v=2026-11-19-pages-v20">
-<link rel="stylesheet" href="css/site.css?v=2026-11-19-pages-v20">
-<link rel="stylesheet" href="css/theme.css?v=2026-11-19-pages-v20">
+<link rel="stylesheet" href="css/app.css?v=2026-11-20-pages-v21">
+<link rel="stylesheet" href="css/icons.css?v=2026-11-20-pages-v21">
+<link rel="stylesheet" href="css/site.css?v=2026-11-20-pages-v21">
+<link rel="stylesheet" href="css/theme.css?v=2026-11-20-pages-v21">
 <script>/* apply the saved light/dark choice before the page draws */try{var c=localStorage.getItem('nd-theme')||'light';document.documentElement.dataset.theme=(c==='dark'||(c==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light';var z=localStorage.getItem('nd-reading-zoom'),l=localStorage.getItem('nd-reading-line'),d=document.documentElement;if(z&&z!=='1'){d.dataset.readingZoom=z;d.style.setProperty('--reading-zoom',z);}if(l&&l!=='normal')d.dataset.readingLine=l;}catch(e){}</script>
 </head>
 <body>
@@ -329,7 +329,7 @@
         <div class="category-manager">
             <div class="category-manager-label">建立／修改分類</div>
             <div class="category-quick-create">
-                <input id="category-manager-new-abbr" class="category-abbr-input" type="text" maxlength="4" placeholder="簡寫" title="左側直排顯示最多四個字；留白會自動使用分類名稱前四個字">
+                <input id="category-manager-new-abbr" class="category-abbr-input" type="text" maxlength="8" placeholder="標籤文字" title="筆記左側顯示的標籤，最多八個字（超過四個字會換行）；留白會用分類名稱前四個字">
                 <input id="category-manager-new-name" type="text" maxlength="30" placeholder="輸入新分類名稱" data-on-keydown="createCategoryFromManager" data-key="Enter" data-prevent>
                 <input id="category-manager-new-color" type="color" value="#14b8a6" title="分類顏色">
                 <button type="button" class="btn-image-import" data-on-click="createCategoryFromManager"><i class="fas fa-plus"></i> 新增分類</button>
@@ -347,7 +347,7 @@
         <div id="category-assign-list" class="category-assign-list"></div>
 
         <div class="category-quick-create category-assign-quick-create">
-            <input id="category-assign-new-abbr" class="category-abbr-input" type="text" maxlength="4" placeholder="簡寫" title="左側直排顯示最多四個字；留白會自動使用分類名稱前四個字" data-on-keydown="handleCategoryAssignQuickCreateKeydown" data-args="[&quot;$event&quot;]">
+            <input id="category-assign-new-abbr" class="category-abbr-input" type="text" maxlength="8" placeholder="標籤文字" title="筆記左側顯示的標籤，最多八個字（超過四個字會換行）；留白會用分類名稱前四個字" data-on-keydown="handleCategoryAssignQuickCreateKeydown" data-args="[&quot;$event&quot;]">
             <input id="category-assign-new-name" type="text" maxlength="30" placeholder="快速新增分類" data-on-keydown="handleCategoryAssignQuickCreateKeydown" data-args="[&quot;$event&quot;]">
             <input id="category-assign-new-color" type="color" value="#ec4899" title="分類顏色">
             <button type="button" class="btn-image-import" data-on-click="saveCategoryAssignment"><i class="fas fa-plus"></i> 建立並套用</button>
@@ -415,9 +415,9 @@
     </div>
 </div>
 
-<script src="js/config.js?v=2026-11-19-pages-v20"></script>
-<script src="js/auth.js?v=2026-11-19-pages-v20"></script>
-<script src="js/drive-server.js?v=2026-11-19-pages-v20"></script>
-<script src="js/boot.js?v=2026-11-19-pages-v20"></script>
+<script src="js/config.js?v=2026-11-20-pages-v21"></script>
+<script src="js/auth.js?v=2026-11-20-pages-v21"></script>
+<script src="js/drive-server.js?v=2026-11-20-pages-v21"></script>
+<script src="js/boot.js?v=2026-11-20-pages-v21"></script>
 </body>
 </html>

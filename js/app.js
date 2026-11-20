@@ -2333,6 +2333,19 @@ const noteActions = (() => {
         return CATEGORY_PALETTE[categoryDefinitions.length % CATEGORY_PALETTE.length];
     }
 
+    /* 分類顏色：照分類的排列順序自動配成一條彩虹（紅→橘→黃→綠→青→藍→紫→桃紅），
+       不會繞回紅色，所以每個分類都不同色。只用來顯示，不改存檔裡的資料。 */
+    function categoryDisplayColor(category) {
+        const n = Math.max(1, categoryDefinitions.length);
+        const i = Math.max(0, categoryDefinitions.findIndex(item => item.id === category?.id));
+        return hslHex(i * 330 / n, 0.62, 0.48);
+    }
+    function hslHex(h, s, l) {
+        const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+        const f = n => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)))).toString(16).padStart(2, '0');
+        return '#' + f(0) + f(8) + f(4);
+    }
+
     function categoryGraphemes(value) {
         const clean = String(value || '').trim();
         if (!clean) return [];
@@ -2359,8 +2372,9 @@ const noteActions = (() => {
             .join('');
     }
 
+    const CATEGORY_LABEL_MAX = 8;   // 筆記左側的分類標籤最多 8 個字（超過 4 個字自動換第二行）
     function normalizeCategoryAbbr(value, fallbackName = '') {
-        const custom = takeCategoryGraphemes(value, 4);
+        const custom = takeCategoryGraphemes(value, CATEGORY_LABEL_MAX);
         const fallback = takeCategoryGraphemes(fallbackName, 4);
 
         /* 舊版只有一個字的簡寫，會自動升級成分類名稱前四個字。
@@ -2372,7 +2386,7 @@ const noteActions = (() => {
     function categoryDisplayAbbr(category) {
         return takeCategoryGraphemes(
             category?.abbr || category?.name || '分類',
-            4
+            CATEGORY_LABEL_MAX
         ) || '分類';
     }
 
@@ -2443,7 +2457,7 @@ const noteActions = (() => {
     }
 
     function categoryChipHtml(category, extraClass = '', attrs = '') {
-        return `<button type="button" class="category-choice ${extraClass}" style="background:${escapeAttribute(category.color)};color:${categoryTextColor(category.color)}" ${attrs}>${escapeHtml(category.name)}</button>`;
+        return `<button type="button" class="category-choice ${extraClass}" style="background:${escapeAttribute(categoryDisplayColor(category))};color:${categoryTextColor()}" ${attrs}>${escapeHtml(category.name)}</button>`;
     }
 
     function openCategoryOverviewModal() {
@@ -2465,9 +2479,9 @@ const noteActions = (() => {
             grid.innerHTML = categoryDefinitions.map(category => {
                 const count = notesData.filter(note => getNoteCategoryIds(note).includes(category.id)).length;
                 return `<button type="button" class="category-overview-card ${activeCategoryFilterId === category.id ? 'active' : ''}" data-on-click="applyCategoryFilter" data-args="[${inlineJsArgument(category.id)}]">
-                    <div class="category-card-color" style="background:${escapeAttribute(category.color)}"></div>
+                    <div class="category-card-color" style="background:${escapeAttribute(categoryDisplayColor(category))}"></div>
                     <div class="category-card-main">
-                        <span class="category-card-abbr" style="background:${escapeAttribute(category.color)};color:${categoryTextColor(category.color)}">${escapeHtml(categoryDisplayAbbr(category))}</span>
+                        <span class="category-card-abbr" style="background:${escapeAttribute(categoryDisplayColor(category))};color:${categoryTextColor()}">${escapeHtml(categoryDisplayAbbr(category))}</span>
                         <div>
                             <div class="category-card-name">${escapeHtml(category.name)}</div>
                             <div class="category-card-count">${count} 則筆記｜點擊直接篩選</div>
@@ -2478,12 +2492,11 @@ const noteActions = (() => {
         }
         manager.innerHTML = categoryDefinitions.length ? categoryDefinitions.map(category => `
             <div class="category-manager-row" data-category-id="${escapeAttribute(category.id)}">
-                <input type="color" id="category-color-${escapeAttribute(category.id)}" value="${escapeAttribute(category.color)}" title="調整顏色">
-                <input class="category-abbr-input" type="text" id="category-abbr-${escapeAttribute(category.id)}" value="${escapeAttribute(category.abbr)}" maxlength="4" title="左側直排顯示最多四個字">
+                <input class="category-abbr-input" type="text" id="category-abbr-${escapeAttribute(category.id)}" value="${escapeAttribute(category.abbr)}" maxlength="8" title="筆記左側顯示的標籤，最多八個字（超過四個字會換行）">
                 <input type="text" id="category-name-${escapeAttribute(category.id)}" value="${escapeAttribute(category.name)}" maxlength="30" title="完整分類名稱">
                 <button type="button" class="btn-category-save" data-on-click="updateCategoryDefinition" data-args="[${inlineJsArgument(category.id)}]">儲存</button>
                 <button type="button" class="btn-category-delete" data-on-click="deleteCategoryDefinition" data-args="[${inlineJsArgument(category.id)}]">刪除</button>
-            </div>`).join('') : '<div class="category-empty-hint">建立後可在這裡改名、換顏色或刪除。</div>';
+            </div>`).join('') : '<div class="category-empty-hint">建立後可在這裡改名、改標籤文字或刪除。顏色會照順序自動配成彩虹。</div>';
     }
 
     function createCategoryFromManager() {
@@ -2510,7 +2523,7 @@ const noteActions = (() => {
         if (duplicate) return alert('已經有相同名稱的分類。');
         category.name = cleanName;
         category.abbr = normalizeCategoryAbbr(abbrInput?.value, cleanName);
-        category.color = normalizeCategoryColor(colorInput?.value);
+        if (colorInput) category.color = normalizeCategoryColor(colorInput.value);
         updateCategoryUi();
         renderCategoryOverview();
         renderNoteCategoryPicker();
@@ -2645,8 +2658,7 @@ const noteActions = (() => {
 
             if (categoryAssignEditingId === category.id) {
                 return `<div class="category-assign-row editing" data-category-id="${categoryId}">
-                    <input type="color" id="assign-category-color-${categoryId}" value="${escapeAttribute(category.color)}" title="分類顏色">
-                    <input class="category-abbr-input" type="text" id="assign-category-abbr-${categoryId}" value="${escapeAttribute(category.abbr)}" maxlength="4" title="左側直排顯示最多四個字" data-on-keydown="handleAssignCategoryEditKeydown" data-args="[&quot;$event&quot;,${inlineJsArgument(category.id)}]">
+                    <input class="category-abbr-input" type="text" id="assign-category-abbr-${categoryId}" value="${escapeAttribute(category.abbr)}" maxlength="8" title="筆記左側顯示的標籤，最多八個字（超過四個字會換行）" data-on-keydown="handleAssignCategoryEditKeydown" data-args="[&quot;$event&quot;,${inlineJsArgument(category.id)}]">
                     <input type="text" id="assign-category-name-${categoryId}" value="${escapeAttribute(category.name)}" maxlength="30" title="完整分類名稱" data-on-keydown="handleAssignCategoryEditKeydown" data-args="[&quot;$event&quot;,${inlineJsArgument(category.id)}]">
                     <div class="category-assign-edit-actions">
                         <button type="button" class="category-assign-edit-save" data-on-click="saveCategoryEditFromAssignModal" data-args="[${inlineJsArgument(category.id)}]">儲存</button>
@@ -2734,7 +2746,7 @@ const noteActions = (() => {
             abbrInput?.value,
             cleanName
         );
-        category.color = normalizeCategoryColor(colorInput?.value);
+        if (colorInput) category.color = normalizeCategoryColor(colorInput.value);
 
         categoryAssignEditingId = null;
 
@@ -3221,11 +3233,10 @@ const noteActions = (() => {
                     <button
                         type="button"
                         class="note-category-chip"
-                        style="background:${escapeAttribute(category.color)};color:${categoryTextColor(category.color)}"
                         title="${escapeAttribute(category.name)}｜點擊只顯示此分類"
                         aria-label="${escapeAttribute(category.name)}"
                         data-on-click="applyCategoryFilter" data-args="[${inlineJsArgument(category.id)}]" data-stop
-                    >${categoryVerticalLabelHtml(category)}</button>
+                    >${escapeHtml(categoryDisplayAbbr(category))}</button>
                 `)
                 .join('');
 
@@ -10383,33 +10394,37 @@ const noteAi = (() => {
        A click still opens the sticky note; only a press that moves more than a few pixels
        is a drag. The new place is saved with the sticky note (synced like the rest). */
     function dragStar(event) {
-        const star = event.target.closest?.('.ai-sticky-star');
-        if (!star || event.button !== 0) return;
+        const first = event.target.closest?.('.ai-sticky-star');
+        if (!first || event.button !== 0) return;
         event.preventDefault();                                      // no text selection while dragging
-        const card = star.closest('.note-item') || document.body;
-        const scale = (star.getBoundingClientRect().width / star.offsetWidth) || 1;   // reading size zooms the note
-        const [bx, by] = (star.style.translate || '0px 0px').split(/\s+/).map(v => parseFloat(v) || 0);
-        const start = {x: event.clientX, y: event.clientY, rect: star.getBoundingClientRect(), box: card.getBoundingClientRect()};
+        // The list can be redrawn by a background sync during a drag: keep following the
+        // star with the same sticky notes instead of the old (removed) element.
+        const ids = first.dataset.stickies;
+        let star = first;
+        const current = () => star.isConnected ? star : (star = document.querySelector('.ai-sticky-star[data-stickies="' + CSS.escape(ids) + '"]') || star);
+        const card = first.closest('.note-item') || document.body;
+        const scale = (first.getBoundingClientRect().width / first.offsetWidth) || 1;   // reading size zooms the note
+        const [bx, by] = (first.style.translate || '0px 0px').split(/\s+/).map(v => parseFloat(v) || 0);
+        const start = {x: event.clientX, y: event.clientY, rect: first.getBoundingClientRect(), box: card.getBoundingClientRect()};
         let moved = false, nx = bx, ny = by;
-        star.setPointerCapture?.(event.pointerId);
         const move = e => {
             let dx = e.clientX - start.x, dy = e.clientY - start.y;
             if (!moved && Math.hypot(dx, dy) < 5) return;
-            moved = true; star.classList.add('dragging'); closePop();
+            moved = true; closePop();
             dx = Math.max(start.box.left + 2 - start.rect.left, Math.min(start.box.right - 2 - start.rect.right, dx));   // stay on the note
             dy = Math.max(start.box.top + 2 - start.rect.top, Math.min(start.box.bottom - 2 - start.rect.bottom, dy));
             nx = Math.round(bx + dx / scale); ny = Math.round(by + dy / scale);
-            star.style.translate = nx + 'px ' + ny + 'px';
+            const el = current(); el.classList.add('dragging'); el.style.translate = nx + 'px ' + ny + 'px';
         };
         const up = () => {
-            star.removeEventListener('pointermove', move); star.removeEventListener('pointerup', up); star.removeEventListener('pointercancel', up);
-            star.classList.remove('dragging');
+            removeEventListener('pointermove', move, true); removeEventListener('pointerup', up, true); removeEventListener('pointercancel', up, true);
+            const el = current(); el.classList.remove('dragging');
             if (!moved) return;
-            star.dataset.dragged = '1'; star.dataset.moved = '1';
-            setTimeout(() => {delete star.dataset.dragged;}, 400);
-            void savePos(star, {x: nx, y: ny});
+            el.dataset.dragged = '1'; el.dataset.moved = '1';
+            setTimeout(() => {delete el.dataset.dragged;}, 400);
+            void savePos(el, {x: nx, y: ny});
         };
-        star.addEventListener('pointermove', move); star.addEventListener('pointerup', up); star.addEventListener('pointercancel', up);
+        addEventListener('pointermove', move, true); addEventListener('pointerup', up, true); addEventListener('pointercancel', up, true);
     }
     async function savePos(star, pos) {
         const now = new Date().toISOString();

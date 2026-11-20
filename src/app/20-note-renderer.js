@@ -138,11 +138,10 @@
                     <button
                         type="button"
                         class="note-category-chip"
-                        style="background:${escapeAttribute(category.color)};color:${categoryTextColor(category.color)}"
                         title="${escapeAttribute(category.name)}｜點擊只顯示此分類"
                         aria-label="${escapeAttribute(category.name)}"
                         data-on-click="applyCategoryFilter" data-args="[${inlineJsArgument(category.id)}]" data-stop
-                    >${categoryVerticalLabelHtml(category)}</button>
+                    >${escapeHtml(categoryDisplayAbbr(category))}</button>
                 `)
                 .join('');
 

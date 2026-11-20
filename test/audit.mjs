@@ -79,6 +79,8 @@ try {
         await page.evaluate(() => openAddModal()); await shot(page, name + '-05-add'); await page.evaluate(() => closeModal()); await page.waitForTimeout(300);
         await page.evaluate(() => openRandomDrawModal()); await shot(page, name + '-06-random'); await page.evaluate(() => closeRandomDrawModal?.());
         await page.evaluate(() => openHistoryModal()); await shot(page, name + '-07-history'); await page.keyboard.press('Escape'); await page.evaluate(() => document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active')));
+        await page.evaluate(() => {for (const n of ['要背的','HIV藥','血清素','抗憂鬱劑','抗凝血劑與溶栓劑','降血壓','降血脂','抗生素','抗癲癇','麻醉藥','荷爾蒙']) if (!categoryDefinitions.some(c => c.name === n)) createCategoryDefinition(n, '', false, n.length > 4 ? n : ''); const n1 = notesData.find(x => x.id === 'n1'); n1.categoryIds = [0, 1, 5].map(i => categoryDefinitions[i].id); filterNotes();});
+        await shot(page, name + '-01b-tags');
         await page.evaluate(() => openCategoryOverviewModal()); await shot(page, name + '-08-categories'); await page.evaluate(() => document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active')));
         await page.evaluate(() => openMoveModal()); await shot(page, name + '-09-move'); await page.evaluate(() => document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active')));
         await page.click('#note-recovery-open').catch(() => {}); await shot(page, name + '-10-trash'); await page.evaluate(() => document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active')));

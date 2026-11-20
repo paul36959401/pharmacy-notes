@@ -570,6 +570,19 @@
         return CATEGORY_PALETTE[categoryDefinitions.length % CATEGORY_PALETTE.length];
     }
 
+    /* 分類顏色：照分類的排列順序自動配成一條彩虹（紅→橘→黃→綠→青→藍→紫→桃紅），
+       不會繞回紅色，所以每個分類都不同色。只用來顯示，不改存檔裡的資料。 */
+    function categoryDisplayColor(category) {
+        const n = Math.max(1, categoryDefinitions.length);
+        const i = Math.max(0, categoryDefinitions.findIndex(item => item.id === category?.id));
+        return hslHex(i * 330 / n, 0.62, 0.48);
+    }
+    function hslHex(h, s, l) {
+        const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+        const f = n => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)))).toString(16).padStart(2, '0');
+        return '#' + f(0) + f(8) + f(4);
+    }
+
     function categoryGraphemes(value) {
         const clean = String(value || '').trim();
         if (!clean) return [];
@@ -596,8 +609,9 @@
             .join('');
     }
 
+    const CATEGORY_LABEL_MAX = 8;   // 筆記左側的分類標籤最多 8 個字（超過 4 個字自動換第二行）
     function normalizeCategoryAbbr(value, fallbackName = '') {
-        const custom = takeCategoryGraphemes(value, 4);
+        const custom = takeCategoryGraphemes(value, CATEGORY_LABEL_MAX);
         const fallback = takeCategoryGraphemes(fallbackName, 4);
 
         /* 舊版只有一個字的簡寫，會自動升級成分類名稱前四個字。
@@ -609,7 +623,7 @@
     function categoryDisplayAbbr(category) {
         return takeCategoryGraphemes(
             category?.abbr || category?.name || '分類',
-            4
+            CATEGORY_LABEL_MAX
         ) || '分類';
     }
 
@@ -680,7 +694,7 @@
     }
 
     function categoryChipHtml(category, extraClass = '', attrs = '') {
-        return `<button type="button" class="category-choice ${extraClass}" style="background:${escapeAttribute(category.color)};color:${categoryTextColor(category.color)}" ${attrs}>${escapeHtml(category.name)}</button>`;
+        return `<button type="button" class="category-choice ${extraClass}" style="background:${escapeAttribute(categoryDisplayColor(category))};color:${categoryTextColor()}" ${attrs}>${escapeHtml(category.name)}</button>`;
     }
 
     function openCategoryOverviewModal() {
@@ -702,9 +716,9 @@
             grid.innerHTML = categoryDefinitions.map(category => {
                 const count = notesData.filter(note => getNoteCategoryIds(note).includes(category.id)).length;
                 return `<button type="button" class="category-overview-card ${activeCategoryFilterId === category.id ? 'active' : ''}" data-on-click="applyCategoryFilter" data-args="[${inlineJsArgument(category.id)}]">
-                    <div class="category-card-color" style="background:${escapeAttribute(category.color)}"></div>
+                    <div class="category-card-color" style="background:${escapeAttribute(categoryDisplayColor(category))}"></div>
                     <div class="category-card-main">
-                        <span class="category-card-abbr" style="background:${escapeAttribute(category.color)};color:${categoryTextColor(category.color)}">${escapeHtml(categoryDisplayAbbr(category))}</span>
+                        <span class="category-card-abbr" style="background:${escapeAttribute(categoryDisplayColor(category))};color:${categoryTextColor()}">${escapeHtml(categoryDisplayAbbr(category))}</span>
                         <div>
                             <div class="category-card-name">${escapeHtml(category.name)}</div>
                             <div class="category-card-count">${count} 則筆記｜點擊直接篩選</div>
@@ -715,12 +729,11 @@
         }
         manager.innerHTML = categoryDefinitions.length ? categoryDefinitions.map(category => `
             <div class="category-manager-row" data-category-id="${escapeAttribute(category.id)}">
-                <input type="color" id="category-color-${escapeAttribute(category.id)}" value="${escapeAttribute(category.color)}" title="調整顏色">
-                <input class="category-abbr-input" type="text" id="category-abbr-${escapeAttribute(category.id)}" value="${escapeAttribute(category.abbr)}" maxlength="4" title="左側直排顯示最多四個字">
+                <input class="category-abbr-input" type="text" id="category-abbr-${escapeAttribute(category.id)}" value="${escapeAttribute(category.abbr)}" maxlength="8" title="筆記左側顯示的標籤，最多八個字（超過四個字會換行）">
                 <input type="text" id="category-name-${escapeAttribute(category.id)}" value="${escapeAttribute(category.name)}" maxlength="30" title="完整分類名稱">
                 <button type="button" class="btn-category-save" data-on-click="updateCategoryDefinition" data-args="[${inlineJsArgument(category.id)}]">儲存</button>
                 <button type="button" class="btn-category-delete" data-on-click="deleteCategoryDefinition" data-args="[${inlineJsArgument(category.id)}]">刪除</button>
-            </div>`).join('') : '<div class="category-empty-hint">建立後可在這裡改名、換顏色或刪除。</div>';
+            </div>`).join('') : '<div class="category-empty-hint">建立後可在這裡改名、改標籤文字或刪除。顏色會照順序自動配成彩虹。</div>';
     }
 
     function createCategoryFromManager() {
@@ -747,7 +760,7 @@
         if (duplicate) return alert('已經有相同名稱的分類。');
         category.name = cleanName;
         category.abbr = normalizeCategoryAbbr(abbrInput?.value, cleanName);
-        category.color = normalizeCategoryColor(colorInput?.value);
+        if (colorInput) category.color = normalizeCategoryColor(colorInput.value);
         updateCategoryUi();
         renderCategoryOverview();
         renderNoteCategoryPicker();
@@ -882,8 +895,7 @@
 
             if (categoryAssignEditingId === category.id) {
                 return `<div class="category-assign-row editing" data-category-id="${categoryId}">
-                    <input type="color" id="assign-category-color-${categoryId}" value="${escapeAttribute(category.color)}" title="分類顏色">
-                    <input class="category-abbr-input" type="text" id="assign-category-abbr-${categoryId}" value="${escapeAttribute(category.abbr)}" maxlength="4" title="左側直排顯示最多四個字" data-on-keydown="handleAssignCategoryEditKeydown" data-args="[&quot;$event&quot;,${inlineJsArgument(category.id)}]">
+                    <input class="category-abbr-input" type="text" id="assign-category-abbr-${categoryId}" value="${escapeAttribute(category.abbr)}" maxlength="8" title="筆記左側顯示的標籤，最多八個字（超過四個字會換行）" data-on-keydown="handleAssignCategoryEditKeydown" data-args="[&quot;$event&quot;,${inlineJsArgument(category.id)}]">
                     <input type="text" id="assign-category-name-${categoryId}" value="${escapeAttribute(category.name)}" maxlength="30" title="完整分類名稱" data-on-keydown="handleAssignCategoryEditKeydown" data-args="[&quot;$event&quot;,${inlineJsArgument(category.id)}]">
                     <div class="category-assign-edit-actions">
                         <button type="button" class="category-assign-edit-save" data-on-click="saveCategoryEditFromAssignModal" data-args="[${inlineJsArgument(category.id)}]">儲存</button>
@@ -971,7 +983,7 @@
             abbrInput?.value,
             cleanName
         );
-        category.color = normalizeCategoryColor(colorInput?.value);
+        if (colorInput) category.color = normalizeCategoryColor(colorInput.value);
 
         categoryAssignEditingId = null;
 

@@ -568,6 +568,24 @@ try {
         await page.waitForTimeout(500);
         check(await page.isHidden('#note-image-search-status'), 'picture-text status line is hidden once all pictures are done: ' + await page.textContent('#note-image-search-status').catch(() => ''));
     }
+    // Category tags: horizontal, no colour, up to 8 characters on 2 lines; overview colours follow a rainbow with no repeats.
+    {
+        const info = await page.evaluate(() => {
+            for (const n of ['要背的', '血清素', '抗凝血劑與溶栓劑']) if (!categoryDefinitions.some(c => c.name === n)) createCategoryDefinition(n, '#ef4444', false, n);
+            const id = document.querySelector('#note-list .note-item[data-id]').dataset.id; window.__tagNote = [id, [...notesData.find(x => String(x.id) === id).categoryIds || []]];
+            notesData.find(x => String(x.id) === id).categoryIds = categoryDefinitions.map(c => c.id); filterNotes();
+            const chips = [...document.querySelectorAll('.note-item[data-id="' + id + '"] .note-category-chip')];
+            const long = chips.find(c => c.textContent.trim() === '抗凝血劑與溶栓劑');
+            const one = chips.find(c => c.textContent.trim() === '要背的');
+            const colors = categoryDefinitions.map(c => categoryDisplayColor(c));
+            return {texts: chips.map(c => c.textContent.trim()), longH: long?.getBoundingClientRect().height, oneH: one?.getBoundingClientRect().height,
+                widths: [...new Set(chips.map(c => Math.round(c.getBoundingClientRect().width)))], bg: getComputedStyle(one).backgroundColor, inline: chips.some(c => c.getAttribute('style')),
+                colors, unique: new Set(colors).size === colors.length, limit: normalizeCategoryAbbr('一二三四五六七八九十', 'x')};
+        });
+        check(info.texts.includes('抗凝血劑與溶栓劑') && info.longH > info.oneH * 1.6 && info.widths.length === 1 && !info.inline && /255, 255, 255/.test(info.bg)
+            && info.unique && info.limit === '一二三四五六七八', 'tags: same width, 8 characters on two lines, no colour; rainbow colours never repeat: ' + JSON.stringify(info));
+        await page.evaluate(() => {const [id, ids] = window.__tagNote; notesData.find(x => String(x.id) === id).categoryIds = ids; filterNotes();});
+    }
     // Sign-in renewal: with < 10 minutes left, the next button click renews it.
     {
         const other = await open('renew');

@@ -568,33 +568,37 @@ const noteAi = (() => {
        A click still opens the sticky note; only a press that moves more than a few pixels
        is a drag. The new place is saved with the sticky note (synced like the rest). */
     function dragStar(event) {
-        const star = event.target.closest?.('.ai-sticky-star');
-        if (!star || event.button !== 0) return;
+        const first = event.target.closest?.('.ai-sticky-star');
+        if (!first || event.button !== 0) return;
         event.preventDefault();                                      // no text selection while dragging
-        const card = star.closest('.note-item') || document.body;
-        const scale = (star.getBoundingClientRect().width / star.offsetWidth) || 1;   // reading size zooms the note
-        const [bx, by] = (star.style.translate || '0px 0px').split(/\s+/).map(v => parseFloat(v) || 0);
-        const start = {x: event.clientX, y: event.clientY, rect: star.getBoundingClientRect(), box: card.getBoundingClientRect()};
+        // The list can be redrawn by a background sync during a drag: keep following the
+        // star with the same sticky notes instead of the old (removed) element.
+        const ids = first.dataset.stickies;
+        let star = first;
+        const current = () => star.isConnected ? star : (star = document.querySelector('.ai-sticky-star[data-stickies="' + CSS.escape(ids) + '"]') || star);
+        const card = first.closest('.note-item') || document.body;
+        const scale = (first.getBoundingClientRect().width / first.offsetWidth) || 1;   // reading size zooms the note
+        const [bx, by] = (first.style.translate || '0px 0px').split(/\s+/).map(v => parseFloat(v) || 0);
+        const start = {x: event.clientX, y: event.clientY, rect: first.getBoundingClientRect(), box: card.getBoundingClientRect()};
         let moved = false, nx = bx, ny = by;
-        star.setPointerCapture?.(event.pointerId);
         const move = e => {
             let dx = e.clientX - start.x, dy = e.clientY - start.y;
             if (!moved && Math.hypot(dx, dy) < 5) return;
-            moved = true; star.classList.add('dragging'); closePop();
+            moved = true; closePop();
             dx = Math.max(start.box.left + 2 - start.rect.left, Math.min(start.box.right - 2 - start.rect.right, dx));   // stay on the note
             dy = Math.max(start.box.top + 2 - start.rect.top, Math.min(start.box.bottom - 2 - start.rect.bottom, dy));
             nx = Math.round(bx + dx / scale); ny = Math.round(by + dy / scale);
-            star.style.translate = nx + 'px ' + ny + 'px';
+            const el = current(); el.classList.add('dragging'); el.style.translate = nx + 'px ' + ny + 'px';
         };
         const up = () => {
-            star.removeEventListener('pointermove', move); star.removeEventListener('pointerup', up); star.removeEventListener('pointercancel', up);
-            star.classList.remove('dragging');
+            removeEventListener('pointermove', move, true); removeEventListener('pointerup', up, true); removeEventListener('pointercancel', up, true);
+            const el = current(); el.classList.remove('dragging');
             if (!moved) return;
-            star.dataset.dragged = '1'; star.dataset.moved = '1';
-            setTimeout(() => {delete star.dataset.dragged;}, 400);
-            void savePos(star, {x: nx, y: ny});
+            el.dataset.dragged = '1'; el.dataset.moved = '1';
+            setTimeout(() => {delete el.dataset.dragged;}, 400);
+            void savePos(el, {x: nx, y: ny});
         };
-        star.addEventListener('pointermove', move); star.addEventListener('pointerup', up); star.addEventListener('pointercancel', up);
+        addEventListener('pointermove', move, true); addEventListener('pointerup', up, true); addEventListener('pointercancel', up, true);
     }
     async function savePos(star, pos) {
         const now = new Date().toISOString();
