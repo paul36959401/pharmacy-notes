@@ -422,7 +422,8 @@ try {
         {
             await page.evaluate(() => noteAi.close());
             await page.$eval('#text-n1 .ai-sticky-star', el => el.scrollIntoView({block: 'center'})); await page.waitForTimeout(200);
-            const s = await (await page.$('#text-n1 .ai-sticky-star')).boundingBox();
+            await page.waitForSelector('#text-n1 .ai-sticky-star', {state: 'visible'}); await page.waitForTimeout(300);
+            const s = await page.locator('#text-n1 .ai-sticky-star').boundingBox();
             await page.mouse.move(s.x + 10, s.y + 10); await page.mouse.down();
             await page.mouse.move(s.x - 40, s.y + 30, {steps: 6}); await page.mouse.move(s.x - 120, s.y + 60, {steps: 6});
             await page.mouse.up();
