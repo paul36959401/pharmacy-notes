@@ -79,6 +79,10 @@ const notePolish = (() => {
         document.addEventListener('keydown', onKey);
         outsideClose();
         hintsToggle();
+        // Saved editor colours: share them between computer and phone once the notes are open.
+        const syncColors = () => setTimeout(() => void window.noteColorSync?.start(), 2500);
+        if (window.noteDriveStartupComplete) syncColors();
+        else window.addEventListener('note-drive-state', function once(event) {if (event.detail?.loaded) {removeEventListener('note-drive-state', once); syncColors();}});
     }
     return {start, topWindow};
 })();

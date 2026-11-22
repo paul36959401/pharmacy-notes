@@ -487,3 +487,13 @@ body .category-manager-row {grid-template-columns: 110px minmax(130px, 1fr) auto
 body .category-card-abbr {white-space: normal !important; max-width: 4.8em; line-height: 1.25 !important; text-align: center; word-break: break-all; overflow-wrap: anywhere;}
 body .category-manager-row {grid-template-columns: 130px minmax(130px, 1fr) auto auto;}
 @media (max-width: 650px) {body .category-manager-row {grid-template-columns: 110px minmax(100px, 1fr);}}
+
+/* 圖片工作室：直線／箭頭／圓形合成一個按鈕 */
+#noteImageEditModal .studio-shape-group {position: relative; display: flex; flex-direction: column;}
+#noteImageEditModal .studio-shape-group [data-studio-shape-main] {width: 100%;}
+#noteImageEditModal .studio-tools .studio-shape-more {position: absolute; right: 0; bottom: 0; width: 18px; height: 18px; padding: 0; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; font-size: 10px; line-height: 1; color: #475569; gap: 0;}
+#noteImageEditModal .studio-tools .studio-shape-more:hover {background: #f1f5f9;}
+#noteImageEditModal .studio-shape-menu {position: fixed; z-index: 60; display: flex; flex-direction: column; gap: 2px; min-width: 120px; padding: 5px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; box-shadow: 0 8px 24px rgba(15,23,42,.15);}
+#noteImageEditModal .studio-shape-menu[hidden] {display: none;}
+#noteImageEditModal .studio-tools .studio-shape-menu button {flex-direction: row; justify-content: flex-start; gap: 8px; padding: 7px 9px; font-size: 13px; border-radius: 7px;}
+#noteImageEditModal .studio-shape-menu kbd {margin-left: auto; color: #94a3b8; font: 600 11px/1 ui-monospace, monospace;}

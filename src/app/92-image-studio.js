@@ -31,7 +31,8 @@ const noteImageStudio = (() => {
         const root=document.createElement('div');root.id='noteImageEditModal';root.className='modal-overlay';root.hidden=true;
         root.innerHTML=noteStudioUI.markup();
         document.body.append(root);
-        root.addEventListener('click',event=>{const button=event.target.closest('button');if(!button||button.disabled)return;if(button.dataset.studioColor)setStyle({color:button.dataset.studioColor});if(button.dataset.studioAction)void action(button.dataset.studioAction);if(button.dataset.studioTool)setTool(button.dataset.studioTool);});
+        root.addEventListener('pointerdown',event=>{if(!event.target.closest('.studio-shape-group'))toggleShapeMenu(false);},true);
+        root.addEventListener('click',event=>{const button=event.target.closest('button');if(!button||button.disabled)return;if(button.dataset.studioColor)setStyle({color:button.dataset.studioColor});if(button.dataset.studioAction)void action(button.dataset.studioAction);if(button.dataset.studioShapeMore!==undefined){toggleShapeMenu();return;}if(button.dataset.studioShape){toggleShapeMenu(false);setTool(button.dataset.studioShape);return;}if(button.dataset.studioTool)setTool(button.dataset.studioTool);});
         root.addEventListener('change',propertyChange);
         root.addEventListener('input',event=>{if(['studio-brightness','studio-contrast','studio-saturation'].includes(event.target.id))el(event.target.id+'-value').textContent=event.target.value;if(['studio-text-size'].includes(event.target.id)&&event.target.value!=='')propertyChange(event);});
         root.addEventListener('pointerdown',event=>{if(session?.textEdit&&event.target!==el('studio-text-editor')){if(event.target.closest('[data-studio-action="edit-text"]')){event.preventDefault();return;}finishText();}},true);
@@ -235,7 +236,25 @@ const noteImageStudio = (() => {
     function studioContinuous(){try{return localStorage.getItem('nd-studio-continuous')!=='0';}catch(_){return true;}}
     function setStudioContinuous(on){try{localStorage.setItem('nd-studio-continuous',on?'1':'0');}catch(_){}const b=document.querySelector('[data-studio-continuous]');if(b)b.setAttribute('aria-pressed',String(on));}
     document.addEventListener('click',event=>{const b=event.target.closest?.('[data-studio-continuous]');if(!b)return;setStudioContinuous(!studioContinuous());message(studioContinuous()?'連續繪製：開啟。畫完方框等形狀會留在同一個工具，按 Esc 或 V 回到選取。':'連續繪製：關閉。畫完一個形狀就回到選取。');});
-    function setTool(tool){if(!session?.ready||session.busy)return;finishText();cancelGesture();session.tool=tool;session.selected=[];update();if(tool==='crop')fit();else schedule();message(({select:'拖曳選取；Shift 多選，Alt 選群組內物件。',hand:'拖曳移動畫布；滾輪縮放。',crop:'拖曳選取裁切範圍，設定比例後按「完成裁切」。',text:'點畫布新增文字，雙擊已有文字編輯。'})[tool]||'在畫布上拖曳新增'+(names[tool]||'標記')+'；按 V 返回選取。');}
+    /* 直線／箭頭／圓形共用一個按鈕：選了哪個，按鈕就換成哪個（下次也記得）。 */
+    function toggleShapeMenu(open){
+        const menu=el('noteImageEditModal').querySelector('.studio-shape-menu'),more=el('noteImageEditModal').querySelector('[data-studio-shape-more]');if(!menu)return;
+        const show=open??menu.hidden;menu.hidden=!show;more?.setAttribute('aria-expanded',String(show));
+        if(show){   // fixed position, so the scrolling tool column cannot cut the menu off
+            const r=menu.parentElement.getBoundingClientRect(),w=menu.offsetWidth,h=menu.offsetHeight;
+            const side=r.right+6+w<=innerWidth;
+            menu.style.left=(side?r.right+6:Math.max(6,Math.min(r.left,innerWidth-w-6)))+'px';
+            menu.style.top=(side?Math.min(r.top,innerHeight-h-6):Math.min(r.bottom+4,innerHeight-h-6))+'px';
+        }
+    }
+    function showShape(tool){
+        if(!noteStudioUI.SHAPES.includes(tool))return;
+        const main=el('noteImageEditModal').querySelector('[data-studio-shape-main]');if(!main)return;
+        const [,icon,label,key]=noteStudioUI.shapeInfo(tool);
+        main.dataset.studioTool=tool;main.title=label+'（'+key+'）';main.querySelector('b').textContent=icon;main.querySelector('span').textContent=label;
+        try{localStorage.setItem('nd-studio-shape',tool);}catch(_){}
+    }
+    function setTool(tool){if(!session?.ready||session.busy)return;showShape(tool);finishText();cancelGesture();session.tool=tool;session.selected=[];update();if(tool==='crop')fit();else schedule();message(({select:'拖曳空白處移動畫面；拖曳標記可移動它；Ctrl+拖曳框選；Shift 多選，Alt 選群組內物件。',hand:'拖曳移動畫布；滾輪縮放。',crop:'拖曳選取裁切範圍，設定比例後按「完成裁切」。',text:'點畫布新增文字，雙擊已有文字編輯。'})[tool]||'在畫布上拖曳新增'+(names[tool]||'標記')+'；按 V 返回選取。');}
     function setStyle(values){
         const s=session;if(!s?.ready||s.busy)return;const items=editable();
         if(Object.hasOwn(values,'bold'))values={...values,weight:values.bold?700:400};if(Object.hasOwn(values,'weight'))values={...values,bold:values.weight>=600};
@@ -365,7 +384,9 @@ const noteImageStudio = (() => {
                 if(event.altKey&&editable().length){duplicate();update();}
                 if(!editable().length||editable().length!==selected().length)return;
                 g.mode='move';g.originals=M.copy(editable());g.frame=frameFor();g.box=M.box(g.originals.flatMap(M.objectCorners));g.snapTargets=[s.doc.crop,...s.doc.objects.filter(o=>o.visible&&!s.selected.includes(o.id)).map(M.bounds)];
-            }else{g.mode='marquee';g.clickId=o?.id||null;g.additive=event.shiftKey;if(!event.shiftKey)setSelection(o?[o.id]:[]);}
+            }else if(event.ctrlKey||event.metaKey||event.shiftKey){g.mode='marquee';g.clickId=o?.id||null;g.additive=event.shiftKey;if(!event.shiftKey)setSelection(o?[o.id]:[]);}
+            // 按住左鍵拖曳照片的空白處（或鎖定的底圖）＝移動畫面；框選改成 Ctrl+拖曳。只點一下照樣選取／取消選取。
+            else{setSelection(o?[o.id]:[]);g.mode='pan';g.clickId=o?.id||null;g.scroll={x:viewport.scrollLeft,y:viewport.scrollTop};}
         }else if(s.tool==='crop'){g.mode='crop';}
         else if(s.tool==='text'){
             const hit=event.target.closest('[data-studio-object]'),existing=s.doc.objects.find(o=>o.id===hit?.dataset.studioObject);if(existing?.type==='text'&&!existing.locked){beginText(existing.id);return;}

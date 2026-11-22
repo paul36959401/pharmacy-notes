@@ -225,6 +225,30 @@ try {
     check(studio.rectPressed === 'true' && (studio.rects >= 2 || studio.shapes >= 2), 'box tool stays selected after drawing; two boxes drawn in a row');
     await page.keyboard.press('Escape');
     check(await page.evaluate(() => document.querySelector('#noteImageEditModal [data-studio-tool="select"]').getAttribute('aria-pressed')) === 'true', 'Esc returns to the select tool');
+    {
+        // No separate 移動 tool; drag the empty part of the photo to move the view; Ctrl+drag box-selects.
+        const noHand = await page.evaluate(() => !document.querySelector('#noteImageEditModal [data-studio-tool="hand"]'));
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        for (let i = 0; i < 6; i++) {await page.mouse.wheel(0, -240); await page.waitForTimeout(60);}
+        await page.waitForTimeout(400);
+        const scroll = () => page.evaluate(() => {const v = document.getElementById('studio-viewport'); return [v.scrollLeft, v.scrollTop];});
+        const count = () => page.evaluate(() => (noteImageEditor.exportDraft?.()?.doc?.objects || []).length);
+        const s0 = await scroll(), c0 = await count();
+        await drag(box.width * .9, box.height * .15, box.width * .6, box.height * .05);
+        const s1 = await scroll(), c1 = await count();
+        check(noHand && (s1[0] !== s0[0] || s1[1] !== s0[1]) && c1 === c0, 'no 移動 button; dragging the empty photo moves the view (zoomed by the wheel) and draws nothing: ' + JSON.stringify({s0, s1, c0, c1}));
+        // Shapes share one button: ▾ menu, and A / L / E keys update it.
+        const main = () => page.evaluate(() => {const b = document.querySelector('#noteImageEditModal [data-studio-shape-main]'); return b.dataset.studioTool + ':' + b.getAttribute('aria-pressed');});
+        const m0 = await main();
+        await page.click('#noteImageEditModal [data-studio-shape-more]');
+        await page.click('#noteImageEditModal [data-studio-shape="ellipse"]');
+        const m1 = await main();
+        await page.keyboard.press('l');
+        const m2 = await main();
+        const rectAlone = await page.evaluate(() => !!document.querySelector('#noteImageEditModal .studio-tools > [data-studio-tool="rect"]'));
+        check(m0.startsWith('arrow') && m1 === 'ellipse:true' && m2 === 'line:true' && rectAlone, 'line/arrow/ellipse share one button (▾ menu and keys); 方框 stays separate: ' + [m0, m1, m2].join(' → '));
+        await page.keyboard.press('v');
+    }
     await page.evaluate(() => noteImageEditor.close(true));
     await page.waitForTimeout(500);
     await page.evaluate(() => closeModal()); await page.waitForTimeout(300);
@@ -585,6 +609,22 @@ try {
         check(info.texts.includes('抗凝血劑與溶栓劑') && info.longH > info.oneH * 1.6 && info.widths.length === 1 && !info.inline && /255, 255, 255/.test(info.bg)
             && info.unique && info.limit === '一二三四五六七八', 'tags: same width, 8 characters on two lines, no colour; rainbow colours never repeat: ' + JSON.stringify(info));
         await page.evaluate(() => {const [id, ids] = window.__tagNote; notesData.find(x => String(x.id) === id).categoryIds = ids; filterNotes();});
+    }
+    // Saved colours: purple restored, 16 per kind, nothing pushed out, shared through Drive.
+    {
+        await page.waitForTimeout(3500);
+        const r = await page.evaluate(() => {
+            const before = [...editorColorMemory.textColor];
+            for (let i = 0; i < 20; i++) rememberEditorColor('textColor', '#1' + String(i).padStart(2, '0') + '0a0');
+            rememberEditorColor('textColor', before[0]);
+            return {purple: before.includes('#a242f0'), before, after: [...editorColorMemory.textColor], last: editorColorMemory.last.textColor};
+        });
+        await page.waitForTimeout(2500);
+        const file = [...drive.files.values()].find(f => f.name === 'nd-editor-colors.json');
+        const synced = file ? JSON.parse(file.content).textColor : null;
+        check(r.purple && r.after.length === 16 && r.before.every((c, i) => r.after[i] === c) && r.last === r.before[0] && JSON.stringify(synced) === JSON.stringify(r.after),
+            'saved colours: #a242f0 back, 16 kept in place (new ones never push old ones out), shared via Drive: ' + JSON.stringify({before: r.before, n: r.after.length, synced: !!synced}));
+        await page.evaluate(before => {editorColorMemory.textColor = before; saveEditorColorMemory();}, r.before);
     }
     // Sign-in renewal: with < 10 minutes left, the next button click renews it.
     {

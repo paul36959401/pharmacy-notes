@@ -632,10 +632,14 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
     let applyingTableCellColor = false;
     const editorColorMemoryManagement = {textColor: false, bgColor: false};
     const EDITOR_COLOR_MEMORY_KEY = 'pharmacy-note-editor-color-memory-v1';
-    const EDITOR_COLOR_MEMORY_LIMIT = 6;
+    const EDITOR_COLOR_MEMORY_LIMIT = 16;
+    // Saved colours keep their place (a new colour is added at the end and never pushes an
+    // old one out); the colour in use is remembered separately in `last`.
     let editorColorMemory = {
         textColor: ['#ef4444'],
-        bgColor: ['#fef08a']
+        bgColor: ['#fef08a'],
+        last: {},
+        updatedAt: ''
     };
 
     function normalizeHexColorValue(value, fallback) {
@@ -656,20 +660,37 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
                     .slice(0, EDITOR_COLOR_MEMORY_LIMIT);
                 editorColorMemory[pickerId] = Array.isArray(stored?.[pickerId]) ? normalized : [fallback];
             });
+            // Before this version the first colour was the one in use.
+            editorColorMemory.last = stored.last && typeof stored.last === 'object' ? stored.last
+                : {textColor: editorColorMemory.textColor[0], bgColor: editorColorMemory.bgColor[0]};
+            editorColorMemory.updatedAt = String(stored.updatedAt || '');
         } catch (error) {
             editorColorMemory = {
                 textColor: ['#ef4444'],
-                bgColor: ['#fef08a']
+                bgColor: ['#fef08a'],
+                last: {},
+                updatedAt: ''
             };
         }
+        // One-time: bring back the purple that was pushed out of the old 6-colour list.
+        try {
+            if (!localStorage.getItem('nd-color-restore-a242f0')) {
+                if (!editorColorMemory.textColor.includes('#a242f0')) editorColorMemory.textColor.push('#a242f0');
+                editorColorMemory.updatedAt = new Date().toISOString();
+                localStorage.setItem('nd-color-restore-a242f0', '1');
+                saveEditorColorMemory(false);
+            }
+        } catch (error) {}
     }
 
-    function saveEditorColorMemory() {
+    function saveEditorColorMemory(listChanged = true) {
+        if (listChanged) editorColorMemory.updatedAt = new Date().toISOString();
         try {
             localStorage.setItem(EDITOR_COLOR_MEMORY_KEY, JSON.stringify(editorColorMemory));
         } catch (error) {
             // 瀏覽器禁止 localStorage 時，仍可在本次開啟期間使用。
         }
+        if (listChanged) window.noteColorSync?.schedule();
     }
 
     function updateEditorColorIcon(pickerId) {
@@ -683,10 +704,17 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
         const color = normalizeHexColorValue(rawColor, fallback);
         const existing = Array.isArray(editorColorMemory[pickerId]) ? editorColorMemory[pickerId] : [];
 
-        editorColorMemory[pickerId] = [color, ...existing.filter(item => item !== color)]
-            .slice(0, EDITOR_COLOR_MEMORY_LIMIT);
-
-        saveEditorColorMemory();
+        let listChanged = false;
+        if (!existing.includes(color)) {
+            if (existing.length < EDITOR_COLOR_MEMORY_LIMIT) {
+                editorColorMemory[pickerId] = [...existing, color];
+                listChanged = true;
+            } else {
+                showPreviewModeToast('常用色已滿 ' + EDITOR_COLOR_MEMORY_LIMIT + ' 個，這個顏色沒有存；可按「管理」刪掉一個再存');
+            }
+        }
+        editorColorMemory.last = {...(editorColorMemory.last || {}), [pickerId]: color};
+        saveEditorColorMemory(listChanged);
         renderEditorColorMemory(pickerId);
         return color;
     }
@@ -699,6 +727,49 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
         }
     }
 
+    /* 常用色同步：存一份在自己的 Google 雲端硬碟（nd-editor-colors.json），電腦和手機共用。
+       每台裝置第一次同步時，把這台的顏色和雲端的合併；之後以比較新的那份為準。 */
+    window.noteColorSync = (() => {
+        const FILE = 'nd-editor-colors.json';
+        let timer = 0, ready = false;
+        const merge = (a, b) => [...new Set([...(a || []), ...(b || [])])].slice(0, EDITOR_COLOR_MEMORY_LIMIT);
+        function apply(remote) {
+            for (const id of ['textColor', 'bgColor']) {
+                if (Array.isArray(remote[id])) editorColorMemory[id] = remote[id].map(c => normalizeHexColorValue(c, '')).filter(Boolean).slice(0, EDITOR_COLOR_MEMORY_LIMIT);
+                renderEditorColorMemory(id);
+            }
+            editorColorMemory.updatedAt = String(remote.updatedAt || '');
+            saveEditorColorMemory(false);
+        }
+        async function start() {
+            try {
+                const remote = await noteDriveServer.rootJsonRead(FILE);
+                const firstSync = !localStorage.getItem('nd-editor-colors-synced');
+                if (remote && (Array.isArray(remote.textColor) || Array.isArray(remote.bgColor))) {
+                    if (firstSync) {
+                        const merged = {textColor: merge(remote.textColor, editorColorMemory.textColor), bgColor: merge(remote.bgColor, editorColorMemory.bgColor)};
+                        const changed = merged.textColor.length !== (remote.textColor || []).length || merged.bgColor.length !== (remote.bgColor || []).length;
+                        apply({...merged, updatedAt: changed ? new Date().toISOString() : remote.updatedAt});
+                        if (changed) await write();
+                    } else if (String(remote.updatedAt || '') > String(editorColorMemory.updatedAt || '')) apply(remote);
+                    else if (String(remote.updatedAt || '') < String(editorColorMemory.updatedAt || '')) await write();
+                } else await write();
+                localStorage.setItem('nd-editor-colors-synced', '1');
+                ready = true;
+            } catch (error) {}
+        }
+        async function write() {
+            const value = {textColor: editorColorMemory.textColor, bgColor: editorColorMemory.bgColor, updatedAt: editorColorMemory.updatedAt || new Date().toISOString()};
+            await noteDriveServer.rootJsonUpdate(FILE, () => value);
+        }
+        function schedule() {
+            if (!ready) return;
+            clearTimeout(timer);
+            timer = setTimeout(() => {void write().catch(() => {});}, 1500);
+        }
+        return {start, schedule};
+    })();
+
     function removeRememberedEditorColor(pickerId, color) {
         // 只修改色票偏好，不對筆記或目前選取範圍執行上色命令。
         finishEditorColorChord();
@@ -707,6 +778,7 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
         const picker = document.getElementById(pickerId);
         if (picker.value.toLowerCase() === color && colors.length) {
             picker.value = colors[0];
+            editorColorMemory.last = {...(editorColorMemory.last || {}), [pickerId]: colors[0]};
             updateEditorColorIcon(pickerId);
         }
         saveEditorColorMemory();
@@ -827,7 +899,7 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
             const picker = document.getElementById(pickerId);
             if (!picker) return;
 
-            const lastColor = editorColorMemory[pickerId]?.[0];
+            const lastColor = editorColorMemory.last?.[pickerId] || editorColorMemory[pickerId]?.[0];
             if (lastColor) picker.value = lastColor;
 
             picker.addEventListener('input', () => handleEditorColorPickerInput(pickerId));
@@ -8540,15 +8612,26 @@ const noteStudioModel = (() => {
 /* Source: 91-studio-ui.js */
 /* Presentation catalog: no document or persistence state here. */
 const noteStudioUI = (() => {
-    const tools = [['select','↖','選取','V'],['hand','✥','移動','M'],['pen','✎','畫筆','P'],['text','T','文字','T'],['arrow','↗','箭頭','A'],['rect','□','方框','R'],['highlight','▰','螢光筆','H'],['line','╱','直線','L'],['ellipse','○','圓形','E'],['crop','⌗','裁切','C']];
+    const tools = [['select','↖','選取','V'],['pen','✎','畫筆','P'],['text','T','文字','T'],['arrow','↗','箭頭','A'],['rect','□','方框','R'],['highlight','▰','螢光筆','H'],['line','╱','直線','L'],['ellipse','○','圓形','E'],['crop','⌗','裁切','C']];
+    /* 直線、箭頭、圓形合成一個按鈕：顯示上次用的形狀，▾ 可以換。方框維持獨立。 */
+    const SHAPES = ['arrow','line','ellipse'];
+    const shapeInfo = tool => tools.find(t => t[0] === tool);
+    function currentShape(){try{const v=localStorage.getItem('nd-studio-shape');return SHAPES.includes(v)?v:'arrow';}catch(_){return 'arrow';}}
+    function toolButton([tool,icon,label,key],extra=''){return `<button type="button" data-studio-tool="${tool}" title="${label}（${key}）"${extra}><b aria-hidden="true">${icon}</b><span>${label}</span></button>`;}
+    function toolButtons(){
+        const shape=shapeInfo(currentShape());
+        const group=`<div class="studio-shape-group">${toolButton(shape,' data-studio-shape-main')}<button type="button" class="studio-shape-more" data-studio-shape-more aria-haspopup="menu" aria-expanded="false" title="換成箭頭、直線或圓形">▾</button>`+
+            `<div class="studio-shape-menu" role="menu" hidden>${SHAPES.map(s=>{const [,icon,label,key]=shapeInfo(s);return `<button type="button" role="menuitem" data-studio-shape="${s}"><b aria-hidden="true">${icon}</b>${label}<kbd>${key}</kbd></button>`;}).join('')}</div></div>`;
+        return tools.filter(t=>!SHAPES.includes(t[0])).map(t=>toolButton(t)+(t[0]==='rect'?group:'')).join('');
+    }
     function markup(){
     const NS="http://www.w3.org/2000/svg";
     return `<section class="studio-dialog" role="dialog" aria-modal="true" aria-labelledby="studio-title">
-          <header class="studio-header"><div><h2 id="studio-title">圖片工作室</h2><p>滾輪縮放 · 長按拖移 · 套用後仍可編輯</p></div><div class="studio-header-actions"><button type="button" data-studio-action="fullscreen" aria-pressed="false">全螢幕</button><button type="button" data-studio-action="cancel" data-nie-action="cancel">取消</button><button type="button" class="studio-primary" data-studio-action="apply" data-nie-action="apply">套用到筆記</button></div></header>
+          <header class="studio-header"><div><h2 id="studio-title">圖片工作室</h2><p>滾輪縮放 · 拖曳空白處移動畫面 · 套用後仍可編輯</p></div><div class="studio-header-actions"><button type="button" data-studio-action="fullscreen" aria-pressed="false">全螢幕</button><button type="button" data-studio-action="cancel" data-nie-action="cancel">取消</button><button type="button" class="studio-primary" data-studio-action="apply" data-nie-action="apply">套用到筆記</button></div></header>
           <div id="studio-discard" class="studio-notice" hidden><span>尚有未套用的修改，草稿會保留。</span><button type="button" data-studio-action="continue">繼續編輯</button><button type="button" data-studio-action="discard">放棄這次修改</button></div>
           <div class="studio-commandbar"><button type="button" data-studio-action="undo" title="Ctrl／⌘+Z">↶ 復原</button><button type="button" data-studio-action="redo" title="Ctrl／⌘+Shift+Z">↷ 重做</button><span class="studio-divider"></span><button type="button" data-studio-action="duplicate" title="Ctrl／⌘+D">複製物件</button><button type="button" data-studio-action="next-object" title="逐一選取，重疊的物件也能選到">切換物件</button><button type="button" data-studio-action="multi" aria-pressed="false">多選</button><button type="button" data-studio-action="delete">刪除</button><label class="studio-snap"><input type="checkbox" id="studio-snap" checked>對齊吸附</label><button type="button" data-studio-action="inspector" aria-pressed="false">進階調整</button></div>
           <div class="studio-stylebar" aria-label="常用畫筆設定"><span class="studio-style-label">顏色</span><div class="studio-palette" role="group" aria-label="常用顏色">${noteImagePalette.map(color=>`<button type="button" class="nie-swatch" data-studio-color="${color}" style="--swatch:${color}" aria-label="使用顏色 ${color}" title="${color}" aria-pressed="false"></button>`).join('')}</div><label>自訂<input id="studio-color" type="color" value="#2563eb"></label><label id="studio-stroke-label">筆粗<input id="studio-stroke" type="number" min="1" max="100" value="3"></label><label id="studio-dash-label">線條<select id="studio-dash"><option value="solid">實線</option><option value="dashed">虛線</option><option value="dotted">點線</option></select></label><div id="studio-color-memory" class="studio-color-memory"><div data-nie-memory-swatches></div><button type="button" data-nie-memory-manage>刪色</button><small data-nie-memory-status></small></div></div><div id="studio-textbar" class="studio-textbar" aria-label="文字設定"><button type="button" data-studio-action="edit-text" id="studio-edit-text">編輯文字</button><label>字級<input id="studio-text-size" type="number" min="8" max="500" step="1" list="studio-text-sizes" aria-label="文字字級"><datalist id="studio-text-sizes">${[12,16,18,20,24,28,32,36,48,60,72,96].map(size=>`<option value="${size}">`).join('')}</datalist><button type="button" data-studio-action="font-down" aria-label="字級減小">−</button><button type="button" data-studio-action="font-up" aria-label="字級加大">＋</button></label><label>字重<select id="studio-text-weight" aria-label="文字粗細">${[[100,'極細'],[200,'特細'],[300,'細體'],[400,'一般'],[500,'中等'],[600,'半粗'],[700,'粗體'],[800,'特粗'],[900,'最粗']].map(([weight,label])=>`<option value="${weight}">${label}</option>`).join('')}</select></label><label><input id="studio-bold" type="checkbox">粗體</label><label><input id="studio-italic" type="checkbox">斜體</label><label>字型<select id="studio-family"><option value="sans">黑體／無襯線</option><option value="serif">襯線字</option><option value="mono">等寬字</option></select></label><small>Enter 換行</small></div>
-          <div class="studio-workspace"><nav class="studio-tools" aria-label="圖片工具">${tools.map(([tool,icon,label,key])=>`<button type="button" data-studio-tool="${tool}" title="${label}（${key}）"><b aria-hidden="true">${icon}</b><span>${label}</span></button>`).join('')}<button type="button" class="studio-continuous" data-studio-continuous aria-pressed="${(()=>{try{return localStorage.getItem('nd-studio-continuous')!=='0';}catch(_){return true;}})()}" title="連續繪製：畫完方框、圓形、箭頭、直線後留在同一個工具（Esc 回到選取）"><b aria-hidden="true">⟳</b><span>連續</span></button></nav>
+          <div class="studio-workspace"><nav class="studio-tools" aria-label="圖片工具">${toolButtons()}<button type="button" class="studio-continuous" data-studio-continuous aria-pressed="${(()=>{try{return localStorage.getItem('nd-studio-continuous')!=='0';}catch(_){return true;}})()}" title="連續繪製：畫完方框、圓形、箭頭、直線後留在同一個工具（Esc 回到選取）"><b aria-hidden="true">⟳</b><span>連續</span></button></nav>
           <div id="studio-viewport" tabindex="0" aria-label="圖片畫布，滾輪縮放；長按後拖移"><div class="studio-space"><div id="studio-surface"><svg id="studio-artboard" xmlns="${NS}" tabindex="0" aria-label="可編輯圖片"><defs id="studio-assets"></defs><g id="studio-scene"></g><g id="studio-guides"></g><g id="studio-selection"></g></svg><textarea id="studio-text-editor" hidden wrap="off" maxlength="4000" spellcheck="false" aria-label="編輯物件文字"></textarea></div></div></div>
           <aside id="studio-inspector" class="studio-inspector" aria-label="進階調整"><section><button type="button" class="studio-inspector-close" data-studio-action="inspector" aria-label="關閉進階調整">×</button><h3 id="studio-property-title">畫布設定</h3><p id="studio-selection-help" class="studio-muted">選取物件後調整屬性</p>
           <div id="studio-object-properties" hidden><label>名稱<input id="studio-name" type="text" maxlength="80"></label><div class="studio-property-grid">${[['x','X'],['y','Y'],['w','寬度'],['h','高度'],['angle','角度']].map(([key,label])=>`<label>${label}<input id="studio-${key}" type="number" step="1"></label>`).join('')}<label>透明度<input id="studio-opacity" type="number" min="0" max="100" value="100"></label></div>
@@ -8561,7 +8644,7 @@ const noteStudioUI = (() => {
           <div id="studio-image-crop-panel" class="studio-crop-panel" hidden><h3>裁切圖片</h3><p>在原圖上拖曳選取要顯示的範圍，原圖會保留。</p><canvas id="studio-crop-preview" width="500" height="340" tabindex="0" aria-label="圖片裁切預覽"></canvas><div><label>比例<select id="studio-image-ratio"><option value="0">自由</option><option value="1">1:1</option><option value="1.3333333333">4:3</option><option value="1.7777777778">16:9</option><option value="0.75">3:4</option><option value="0.5625">9:16</option></select></label><button type="button" data-studio-action="crop-reset">顯示完整原圖</button><button type="button" data-studio-action="crop-cancel">取消</button><button type="button" class="studio-primary" data-studio-action="crop-apply">套用裁切</button></div></div>
           <footer class="studio-footer"><span id="studio-status" role="status" aria-live="polite">正在讀取圖片…</span><div class="studio-zoom"><button type="button" data-studio-action="zoom-out" aria-label="縮小">−</button><span id="studio-zoom-value">100%</span><button type="button" data-studio-action="zoom-in" aria-label="放大">＋</button><button type="button" data-studio-action="fit">符合視窗</button><select id="studio-export-scale" aria-label="匯出倍率"><option value="1">1×</option><option value="2">2×</option></select><button type="button" data-studio-action="png">PNG</button><button type="button" data-studio-action="jpg">JPG</button></div></footer></section>`;
     }
-    return {tools, markup, shortcuts:Object.fromEntries(tools.map(([tool,,,key])=>[key.toLowerCase(),tool]))};
+    return {tools, markup, SHAPES, shapeInfo, shortcuts:Object.fromEntries(tools.map(([tool,,,key])=>[key.toLowerCase(),tool]))};
 })();
 
 /* Source: 92-image-studio.js */
@@ -8597,7 +8680,8 @@ const noteImageStudio = (() => {
         const root=document.createElement('div');root.id='noteImageEditModal';root.className='modal-overlay';root.hidden=true;
         root.innerHTML=noteStudioUI.markup();
         document.body.append(root);
-        root.addEventListener('click',event=>{const button=event.target.closest('button');if(!button||button.disabled)return;if(button.dataset.studioColor)setStyle({color:button.dataset.studioColor});if(button.dataset.studioAction)void action(button.dataset.studioAction);if(button.dataset.studioTool)setTool(button.dataset.studioTool);});
+        root.addEventListener('pointerdown',event=>{if(!event.target.closest('.studio-shape-group'))toggleShapeMenu(false);},true);
+        root.addEventListener('click',event=>{const button=event.target.closest('button');if(!button||button.disabled)return;if(button.dataset.studioColor)setStyle({color:button.dataset.studioColor});if(button.dataset.studioAction)void action(button.dataset.studioAction);if(button.dataset.studioShapeMore!==undefined){toggleShapeMenu();return;}if(button.dataset.studioShape){toggleShapeMenu(false);setTool(button.dataset.studioShape);return;}if(button.dataset.studioTool)setTool(button.dataset.studioTool);});
         root.addEventListener('change',propertyChange);
         root.addEventListener('input',event=>{if(['studio-brightness','studio-contrast','studio-saturation'].includes(event.target.id))el(event.target.id+'-value').textContent=event.target.value;if(['studio-text-size'].includes(event.target.id)&&event.target.value!=='')propertyChange(event);});
         root.addEventListener('pointerdown',event=>{if(session?.textEdit&&event.target!==el('studio-text-editor')){if(event.target.closest('[data-studio-action="edit-text"]')){event.preventDefault();return;}finishText();}},true);
@@ -8801,7 +8885,25 @@ const noteImageStudio = (() => {
     function studioContinuous(){try{return localStorage.getItem('nd-studio-continuous')!=='0';}catch(_){return true;}}
     function setStudioContinuous(on){try{localStorage.setItem('nd-studio-continuous',on?'1':'0');}catch(_){}const b=document.querySelector('[data-studio-continuous]');if(b)b.setAttribute('aria-pressed',String(on));}
     document.addEventListener('click',event=>{const b=event.target.closest?.('[data-studio-continuous]');if(!b)return;setStudioContinuous(!studioContinuous());message(studioContinuous()?'連續繪製：開啟。畫完方框等形狀會留在同一個工具，按 Esc 或 V 回到選取。':'連續繪製：關閉。畫完一個形狀就回到選取。');});
-    function setTool(tool){if(!session?.ready||session.busy)return;finishText();cancelGesture();session.tool=tool;session.selected=[];update();if(tool==='crop')fit();else schedule();message(({select:'拖曳選取；Shift 多選，Alt 選群組內物件。',hand:'拖曳移動畫布；滾輪縮放。',crop:'拖曳選取裁切範圍，設定比例後按「完成裁切」。',text:'點畫布新增文字，雙擊已有文字編輯。'})[tool]||'在畫布上拖曳新增'+(names[tool]||'標記')+'；按 V 返回選取。');}
+    /* 直線／箭頭／圓形共用一個按鈕：選了哪個，按鈕就換成哪個（下次也記得）。 */
+    function toggleShapeMenu(open){
+        const menu=el('noteImageEditModal').querySelector('.studio-shape-menu'),more=el('noteImageEditModal').querySelector('[data-studio-shape-more]');if(!menu)return;
+        const show=open??menu.hidden;menu.hidden=!show;more?.setAttribute('aria-expanded',String(show));
+        if(show){   // fixed position, so the scrolling tool column cannot cut the menu off
+            const r=menu.parentElement.getBoundingClientRect(),w=menu.offsetWidth,h=menu.offsetHeight;
+            const side=r.right+6+w<=innerWidth;
+            menu.style.left=(side?r.right+6:Math.max(6,Math.min(r.left,innerWidth-w-6)))+'px';
+            menu.style.top=(side?Math.min(r.top,innerHeight-h-6):Math.min(r.bottom+4,innerHeight-h-6))+'px';
+        }
+    }
+    function showShape(tool){
+        if(!noteStudioUI.SHAPES.includes(tool))return;
+        const main=el('noteImageEditModal').querySelector('[data-studio-shape-main]');if(!main)return;
+        const [,icon,label,key]=noteStudioUI.shapeInfo(tool);
+        main.dataset.studioTool=tool;main.title=label+'（'+key+'）';main.querySelector('b').textContent=icon;main.querySelector('span').textContent=label;
+        try{localStorage.setItem('nd-studio-shape',tool);}catch(_){}
+    }
+    function setTool(tool){if(!session?.ready||session.busy)return;showShape(tool);finishText();cancelGesture();session.tool=tool;session.selected=[];update();if(tool==='crop')fit();else schedule();message(({select:'拖曳空白處移動畫面；拖曳標記可移動它；Ctrl+拖曳框選；Shift 多選，Alt 選群組內物件。',hand:'拖曳移動畫布；滾輪縮放。',crop:'拖曳選取裁切範圍，設定比例後按「完成裁切」。',text:'點畫布新增文字，雙擊已有文字編輯。'})[tool]||'在畫布上拖曳新增'+(names[tool]||'標記')+'；按 V 返回選取。');}
     function setStyle(values){
         const s=session;if(!s?.ready||s.busy)return;const items=editable();
         if(Object.hasOwn(values,'bold'))values={...values,weight:values.bold?700:400};if(Object.hasOwn(values,'weight'))values={...values,bold:values.weight>=600};
@@ -8931,7 +9033,9 @@ const noteImageStudio = (() => {
                 if(event.altKey&&editable().length){duplicate();update();}
                 if(!editable().length||editable().length!==selected().length)return;
                 g.mode='move';g.originals=M.copy(editable());g.frame=frameFor();g.box=M.box(g.originals.flatMap(M.objectCorners));g.snapTargets=[s.doc.crop,...s.doc.objects.filter(o=>o.visible&&!s.selected.includes(o.id)).map(M.bounds)];
-            }else{g.mode='marquee';g.clickId=o?.id||null;g.additive=event.shiftKey;if(!event.shiftKey)setSelection(o?[o.id]:[]);}
+            }else if(event.ctrlKey||event.metaKey||event.shiftKey){g.mode='marquee';g.clickId=o?.id||null;g.additive=event.shiftKey;if(!event.shiftKey)setSelection(o?[o.id]:[]);}
+            // 按住左鍵拖曳照片的空白處（或鎖定的底圖）＝移動畫面；框選改成 Ctrl+拖曳。只點一下照樣選取／取消選取。
+            else{setSelection(o?[o.id]:[]);g.mode='pan';g.clickId=o?.id||null;g.scroll={x:viewport.scrollLeft,y:viewport.scrollTop};}
         }else if(s.tool==='crop'){g.mode='crop';}
         else if(s.tool==='text'){
             const hit=event.target.closest('[data-studio-object]'),existing=s.doc.objects.find(o=>o.id===hit?.dataset.studioObject);if(existing?.type==='text'&&!existing.locked){beginText(existing.id);return;}
@@ -10764,6 +10868,10 @@ const notePolish = (() => {
         document.addEventListener('keydown', onKey);
         outsideClose();
         hintsToggle();
+        // Saved editor colours: share them between computer and phone once the notes are open.
+        const syncColors = () => setTimeout(() => void window.noteColorSync?.start(), 2500);
+        if (window.noteDriveStartupComplete) syncColors();
+        else window.addEventListener('note-drive-state', function once(event) {if (event.detail?.loaded) {removeEventListener('note-drive-state', once); syncColors();}});
     }
     return {start, topWindow};
 })();

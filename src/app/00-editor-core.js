@@ -631,10 +631,14 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
     let applyingTableCellColor = false;
     const editorColorMemoryManagement = {textColor: false, bgColor: false};
     const EDITOR_COLOR_MEMORY_KEY = 'pharmacy-note-editor-color-memory-v1';
-    const EDITOR_COLOR_MEMORY_LIMIT = 6;
+    const EDITOR_COLOR_MEMORY_LIMIT = 16;
+    // Saved colours keep their place (a new colour is added at the end and never pushes an
+    // old one out); the colour in use is remembered separately in `last`.
     let editorColorMemory = {
         textColor: ['#ef4444'],
-        bgColor: ['#fef08a']
+        bgColor: ['#fef08a'],
+        last: {},
+        updatedAt: ''
     };
 
     function normalizeHexColorValue(value, fallback) {
@@ -655,20 +659,37 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
                     .slice(0, EDITOR_COLOR_MEMORY_LIMIT);
                 editorColorMemory[pickerId] = Array.isArray(stored?.[pickerId]) ? normalized : [fallback];
             });
+            // Before this version the first colour was the one in use.
+            editorColorMemory.last = stored.last && typeof stored.last === 'object' ? stored.last
+                : {textColor: editorColorMemory.textColor[0], bgColor: editorColorMemory.bgColor[0]};
+            editorColorMemory.updatedAt = String(stored.updatedAt || '');
         } catch (error) {
             editorColorMemory = {
                 textColor: ['#ef4444'],
-                bgColor: ['#fef08a']
+                bgColor: ['#fef08a'],
+                last: {},
+                updatedAt: ''
             };
         }
+        // One-time: bring back the purple that was pushed out of the old 6-colour list.
+        try {
+            if (!localStorage.getItem('nd-color-restore-a242f0')) {
+                if (!editorColorMemory.textColor.includes('#a242f0')) editorColorMemory.textColor.push('#a242f0');
+                editorColorMemory.updatedAt = new Date().toISOString();
+                localStorage.setItem('nd-color-restore-a242f0', '1');
+                saveEditorColorMemory(false);
+            }
+        } catch (error) {}
     }
 
-    function saveEditorColorMemory() {
+    function saveEditorColorMemory(listChanged = true) {
+        if (listChanged) editorColorMemory.updatedAt = new Date().toISOString();
         try {
             localStorage.setItem(EDITOR_COLOR_MEMORY_KEY, JSON.stringify(editorColorMemory));
         } catch (error) {
             // 瀏覽器禁止 localStorage 時，仍可在本次開啟期間使用。
         }
+        if (listChanged) window.noteColorSync?.schedule();
     }
 
     function updateEditorColorIcon(pickerId) {
@@ -682,10 +703,17 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
         const color = normalizeHexColorValue(rawColor, fallback);
         const existing = Array.isArray(editorColorMemory[pickerId]) ? editorColorMemory[pickerId] : [];
 
-        editorColorMemory[pickerId] = [color, ...existing.filter(item => item !== color)]
-            .slice(0, EDITOR_COLOR_MEMORY_LIMIT);
-
-        saveEditorColorMemory();
+        let listChanged = false;
+        if (!existing.includes(color)) {
+            if (existing.length < EDITOR_COLOR_MEMORY_LIMIT) {
+                editorColorMemory[pickerId] = [...existing, color];
+                listChanged = true;
+            } else {
+                showPreviewModeToast('常用色已滿 ' + EDITOR_COLOR_MEMORY_LIMIT + ' 個，這個顏色沒有存；可按「管理」刪掉一個再存');
+            }
+        }
+        editorColorMemory.last = {...(editorColorMemory.last || {}), [pickerId]: color};
+        saveEditorColorMemory(listChanged);
         renderEditorColorMemory(pickerId);
         return color;
     }
@@ -698,6 +726,49 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
         }
     }
 
+    /* 常用色同步：存一份在自己的 Google 雲端硬碟（nd-editor-colors.json），電腦和手機共用。
+       每台裝置第一次同步時，把這台的顏色和雲端的合併；之後以比較新的那份為準。 */
+    window.noteColorSync = (() => {
+        const FILE = 'nd-editor-colors.json';
+        let timer = 0, ready = false;
+        const merge = (a, b) => [...new Set([...(a || []), ...(b || [])])].slice(0, EDITOR_COLOR_MEMORY_LIMIT);
+        function apply(remote) {
+            for (const id of ['textColor', 'bgColor']) {
+                if (Array.isArray(remote[id])) editorColorMemory[id] = remote[id].map(c => normalizeHexColorValue(c, '')).filter(Boolean).slice(0, EDITOR_COLOR_MEMORY_LIMIT);
+                renderEditorColorMemory(id);
+            }
+            editorColorMemory.updatedAt = String(remote.updatedAt || '');
+            saveEditorColorMemory(false);
+        }
+        async function start() {
+            try {
+                const remote = await noteDriveServer.rootJsonRead(FILE);
+                const firstSync = !localStorage.getItem('nd-editor-colors-synced');
+                if (remote && (Array.isArray(remote.textColor) || Array.isArray(remote.bgColor))) {
+                    if (firstSync) {
+                        const merged = {textColor: merge(remote.textColor, editorColorMemory.textColor), bgColor: merge(remote.bgColor, editorColorMemory.bgColor)};
+                        const changed = merged.textColor.length !== (remote.textColor || []).length || merged.bgColor.length !== (remote.bgColor || []).length;
+                        apply({...merged, updatedAt: changed ? new Date().toISOString() : remote.updatedAt});
+                        if (changed) await write();
+                    } else if (String(remote.updatedAt || '') > String(editorColorMemory.updatedAt || '')) apply(remote);
+                    else if (String(remote.updatedAt || '') < String(editorColorMemory.updatedAt || '')) await write();
+                } else await write();
+                localStorage.setItem('nd-editor-colors-synced', '1');
+                ready = true;
+            } catch (error) {}
+        }
+        async function write() {
+            const value = {textColor: editorColorMemory.textColor, bgColor: editorColorMemory.bgColor, updatedAt: editorColorMemory.updatedAt || new Date().toISOString()};
+            await noteDriveServer.rootJsonUpdate(FILE, () => value);
+        }
+        function schedule() {
+            if (!ready) return;
+            clearTimeout(timer);
+            timer = setTimeout(() => {void write().catch(() => {});}, 1500);
+        }
+        return {start, schedule};
+    })();
+
     function removeRememberedEditorColor(pickerId, color) {
         // 只修改色票偏好，不對筆記或目前選取範圍執行上色命令。
         finishEditorColorChord();
@@ -706,6 +777,7 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
         const picker = document.getElementById(pickerId);
         if (picker.value.toLowerCase() === color && colors.length) {
             picker.value = colors[0];
+            editorColorMemory.last = {...(editorColorMemory.last || {}), [pickerId]: colors[0]};
             updateEditorColorIcon(pickerId);
         }
         saveEditorColorMemory();
@@ -826,7 +898,7 @@ const SCRIPT_URL = '';  // 舊 Apps Script 網址已不再使用（保留名稱�
             const picker = document.getElementById(pickerId);
             if (!picker) return;
 
-            const lastColor = editorColorMemory[pickerId]?.[0];
+            const lastColor = editorColorMemory.last?.[pickerId] || editorColorMemory[pickerId]?.[0];
             if (lastColor) picker.value = lastColor;
 
             picker.addEventListener('input', () => handleEditorColorPickerInput(pickerId));
