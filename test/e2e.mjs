@@ -243,11 +243,20 @@ try {
         await page.click('#noteImageEditModal [data-studio-shape-more]');
         await page.click('#noteImageEditModal [data-studio-shape="ellipse"]');
         const m1 = await main();
-        await page.keyboard.press('l');
-        const m2 = await main();
         const rectAlone = await page.evaluate(() => !!document.querySelector('#noteImageEditModal .studio-tools > [data-studio-tool="rect"]'));
-        check(m0.startsWith('arrow') && m1 === 'ellipse:true' && m2 === 'line:true' && rectAlone, 'line/arrow/ellipse share one button (▾ menu and keys); 方框 stays separate: ' + [m0, m1, m2].join(' → '));
-        await page.keyboard.press('v');
+        check(m0.startsWith('arrow') && m1 === 'ellipse:true' && rectAlone, 'line/arrow/ellipse share one button (▾ menu); 方框 stays separate: ' + [m0, m1].join(' → '));
+        // W / S move up / down the tool column; the old letter keys do nothing now.
+        const pressed = () => page.evaluate(() => document.querySelector('#noteImageEditModal .studio-tools [data-studio-tool][aria-pressed="true"]')?.dataset.studioTool);
+        const seq = [];
+        await page.keyboard.press('s'); seq.push(await pressed());
+        await page.keyboard.press('w'); seq.push(await pressed());
+        await page.keyboard.press('w'); seq.push(await pressed());
+        await page.keyboard.press('v'); seq.push(await pressed());
+        for (let i = 0; i < 3; i++) await page.keyboard.press('w');
+        seq.push(await pressed());
+        await page.keyboard.press('w'); seq.push(await pressed());
+        check(seq.join(',') === 'highlight,ellipse,rect,rect,select,crop', 'W/S step through the tools (wrapping), V no longer switches: ' + seq.join(','));
+        await page.keyboard.press('s');
     }
     await page.evaluate(() => noteImageEditor.close(true));
     await page.waitForTimeout(500);

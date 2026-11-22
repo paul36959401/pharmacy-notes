@@ -8617,17 +8617,17 @@ const noteStudioUI = (() => {
     const SHAPES = ['arrow','line','ellipse'];
     const shapeInfo = tool => tools.find(t => t[0] === tool);
     function currentShape(){try{const v=localStorage.getItem('nd-studio-shape');return SHAPES.includes(v)?v:'arrow';}catch(_){return 'arrow';}}
-    function toolButton([tool,icon,label,key],extra=''){return `<button type="button" data-studio-tool="${tool}" title="${label}（${key}）"${extra}><b aria-hidden="true">${icon}</b><span>${label}</span></button>`;}
+    function toolButton([tool,icon,label],extra=''){return `<button type="button" data-studio-tool="${tool}" title="${label}（W／S 上下切換工具）"${extra}><b aria-hidden="true">${icon}</b><span>${label}</span></button>`;}
     function toolButtons(){
         const shape=shapeInfo(currentShape());
         const group=`<div class="studio-shape-group">${toolButton(shape,' data-studio-shape-main')}<button type="button" class="studio-shape-more" data-studio-shape-more aria-haspopup="menu" aria-expanded="false" title="換成箭頭、直線或圓形">▾</button>`+
-            `<div class="studio-shape-menu" role="menu" hidden>${SHAPES.map(s=>{const [,icon,label,key]=shapeInfo(s);return `<button type="button" role="menuitem" data-studio-shape="${s}"><b aria-hidden="true">${icon}</b>${label}<kbd>${key}</kbd></button>`;}).join('')}</div></div>`;
+            `<div class="studio-shape-menu" role="menu" hidden>${SHAPES.map(s=>{const [,icon,label]=shapeInfo(s);return `<button type="button" role="menuitem" data-studio-shape="${s}"><b aria-hidden="true">${icon}</b>${label}</button>`;}).join('')}</div></div>`;
         return tools.filter(t=>!SHAPES.includes(t[0])).map(t=>toolButton(t)+(t[0]==='rect'?group:'')).join('');
     }
     function markup(){
     const NS="http://www.w3.org/2000/svg";
     return `<section class="studio-dialog" role="dialog" aria-modal="true" aria-labelledby="studio-title">
-          <header class="studio-header"><div><h2 id="studio-title">圖片工作室</h2><p>滾輪縮放 · 拖曳空白處移動畫面 · 套用後仍可編輯</p></div><div class="studio-header-actions"><button type="button" data-studio-action="fullscreen" aria-pressed="false">全螢幕</button><button type="button" data-studio-action="cancel" data-nie-action="cancel">取消</button><button type="button" class="studio-primary" data-studio-action="apply" data-nie-action="apply">套用到筆記</button></div></header>
+          <header class="studio-header"><div><h2 id="studio-title">圖片工作室</h2><p>W／S 上下換工具 · 滾輪縮放 · 拖曳空白處移動畫面 · 套用後仍可編輯</p></div><div class="studio-header-actions"><button type="button" data-studio-action="fullscreen" aria-pressed="false">全螢幕</button><button type="button" data-studio-action="cancel" data-nie-action="cancel">取消</button><button type="button" class="studio-primary" data-studio-action="apply" data-nie-action="apply">套用到筆記</button></div></header>
           <div id="studio-discard" class="studio-notice" hidden><span>尚有未套用的修改，草稿會保留。</span><button type="button" data-studio-action="continue">繼續編輯</button><button type="button" data-studio-action="discard">放棄這次修改</button></div>
           <div class="studio-commandbar"><button type="button" data-studio-action="undo" title="Ctrl／⌘+Z">↶ 復原</button><button type="button" data-studio-action="redo" title="Ctrl／⌘+Shift+Z">↷ 重做</button><span class="studio-divider"></span><button type="button" data-studio-action="duplicate" title="Ctrl／⌘+D">複製物件</button><button type="button" data-studio-action="next-object" title="逐一選取，重疊的物件也能選到">切換物件</button><button type="button" data-studio-action="multi" aria-pressed="false">多選</button><button type="button" data-studio-action="delete">刪除</button><label class="studio-snap"><input type="checkbox" id="studio-snap" checked>對齊吸附</label><button type="button" data-studio-action="inspector" aria-pressed="false">進階調整</button></div>
           <div class="studio-stylebar" aria-label="常用畫筆設定"><span class="studio-style-label">顏色</span><div class="studio-palette" role="group" aria-label="常用顏色">${noteImagePalette.map(color=>`<button type="button" class="nie-swatch" data-studio-color="${color}" style="--swatch:${color}" aria-label="使用顏色 ${color}" title="${color}" aria-pressed="false"></button>`).join('')}</div><label>自訂<input id="studio-color" type="color" value="#2563eb"></label><label id="studio-stroke-label">筆粗<input id="studio-stroke" type="number" min="1" max="100" value="3"></label><label id="studio-dash-label">線條<select id="studio-dash"><option value="solid">實線</option><option value="dashed">虛線</option><option value="dotted">點線</option></select></label><div id="studio-color-memory" class="studio-color-memory"><div data-nie-memory-swatches></div><button type="button" data-nie-memory-manage>刪色</button><small data-nie-memory-status></small></div></div><div id="studio-textbar" class="studio-textbar" aria-label="文字設定"><button type="button" data-studio-action="edit-text" id="studio-edit-text">編輯文字</button><label>字級<input id="studio-text-size" type="number" min="8" max="500" step="1" list="studio-text-sizes" aria-label="文字字級"><datalist id="studio-text-sizes">${[12,16,18,20,24,28,32,36,48,60,72,96].map(size=>`<option value="${size}">`).join('')}</datalist><button type="button" data-studio-action="font-down" aria-label="字級減小">−</button><button type="button" data-studio-action="font-up" aria-label="字級加大">＋</button></label><label>字重<select id="studio-text-weight" aria-label="文字粗細">${[[100,'極細'],[200,'特細'],[300,'細體'],[400,'一般'],[500,'中等'],[600,'半粗'],[700,'粗體'],[800,'特粗'],[900,'最粗']].map(([weight,label])=>`<option value="${weight}">${label}</option>`).join('')}</select></label><label><input id="studio-bold" type="checkbox">粗體</label><label><input id="studio-italic" type="checkbox">斜體</label><label>字型<select id="studio-family"><option value="sans">黑體／無襯線</option><option value="serif">襯線字</option><option value="mono">等寬字</option></select></label><small>Enter 換行</small></div>
@@ -8644,7 +8644,7 @@ const noteStudioUI = (() => {
           <div id="studio-image-crop-panel" class="studio-crop-panel" hidden><h3>裁切圖片</h3><p>在原圖上拖曳選取要顯示的範圍，原圖會保留。</p><canvas id="studio-crop-preview" width="500" height="340" tabindex="0" aria-label="圖片裁切預覽"></canvas><div><label>比例<select id="studio-image-ratio"><option value="0">自由</option><option value="1">1:1</option><option value="1.3333333333">4:3</option><option value="1.7777777778">16:9</option><option value="0.75">3:4</option><option value="0.5625">9:16</option></select></label><button type="button" data-studio-action="crop-reset">顯示完整原圖</button><button type="button" data-studio-action="crop-cancel">取消</button><button type="button" class="studio-primary" data-studio-action="crop-apply">套用裁切</button></div></div>
           <footer class="studio-footer"><span id="studio-status" role="status" aria-live="polite">正在讀取圖片…</span><div class="studio-zoom"><button type="button" data-studio-action="zoom-out" aria-label="縮小">−</button><span id="studio-zoom-value">100%</span><button type="button" data-studio-action="zoom-in" aria-label="放大">＋</button><button type="button" data-studio-action="fit">符合視窗</button><select id="studio-export-scale" aria-label="匯出倍率"><option value="1">1×</option><option value="2">2×</option></select><button type="button" data-studio-action="png">PNG</button><button type="button" data-studio-action="jpg">JPG</button></div></footer></section>`;
     }
-    return {tools, markup, SHAPES, shapeInfo, shortcuts:Object.fromEntries(tools.map(([tool,,,key])=>[key.toLowerCase(),tool]))};
+    return {tools, markup, SHAPES, shapeInfo};
 })();
 
 /* Source: 92-image-studio.js */
@@ -8899,11 +8899,20 @@ const noteImageStudio = (() => {
     function showShape(tool){
         if(!noteStudioUI.SHAPES.includes(tool))return;
         const main=el('noteImageEditModal').querySelector('[data-studio-shape-main]');if(!main)return;
-        const [,icon,label,key]=noteStudioUI.shapeInfo(tool);
-        main.dataset.studioTool=tool;main.title=label+'（'+key+'）';main.querySelector('b').textContent=icon;main.querySelector('span').textContent=label;
+        const [,icon,label]=noteStudioUI.shapeInfo(tool);
+        main.dataset.studioTool=tool;main.title=label+'（W／S 上下切換工具）';main.querySelector('b').textContent=icon;main.querySelector('span').textContent=label;
         try{localStorage.setItem('nd-studio-shape',tool);}catch(_){}
     }
-    function setTool(tool){if(!session?.ready||session.busy)return;showShape(tool);finishText();cancelGesture();session.tool=tool;session.selected=[];update();if(tool==='crop')fit();else schedule();message(({select:'拖曳空白處移動畫面；拖曳標記可移動它；Ctrl+拖曳框選；Shift 多選，Alt 選群組內物件。',hand:'拖曳移動畫布；滾輪縮放。',crop:'拖曳選取裁切範圍，設定比例後按「完成裁切」。',text:'點畫布新增文字，雙擊已有文字編輯。'})[tool]||'在畫布上拖曳新增'+(names[tool]||'標記')+'；按 V 返回選取。');}
+    function stepTool(delta){
+        const s=session;if(!s?.ready||s.busy)return;
+        const buttons=[...el('noteImageEditModal').querySelectorAll('.studio-tools [data-studio-tool]')].filter(b=>!b.disabled&&b.getClientRects().length);
+        if(!buttons.length)return;
+        const at=buttons.findIndex(b=>b.dataset.studioTool===s.tool);
+        const next=buttons[((at<0?0:at+delta)%buttons.length+buttons.length)%buttons.length];
+        setTool(next.dataset.studioTool);
+        next.scrollIntoView({block:'nearest',inline:'nearest'});
+    }
+    function setTool(tool){if(!session?.ready||session.busy)return;showShape(tool);finishText();cancelGesture();session.tool=tool;session.selected=[];update();if(tool==='crop')fit();else schedule();message(({select:'拖曳空白處移動畫面；拖曳標記可移動它；Ctrl+拖曳框選；Shift 多選，Alt 選群組內物件。',hand:'拖曳移動畫布；滾輪縮放。',crop:'拖曳選取裁切範圍，設定比例後按「完成裁切」。',text:'點畫布新增文字，雙擊已有文字編輯。'})[tool]||'在畫布上拖曳新增'+(names[tool]||'標記')+'；W／S 換工具，Esc 回到選取。');}
     function setStyle(values){
         const s=session;if(!s?.ready||s.busy)return;const items=editable();
         if(Object.hasOwn(values,'bold'))values={...values,weight:values.bold?700:400};if(Object.hasOwn(values,'weight'))values={...values,bold:values.weight>=600};
@@ -9157,7 +9166,7 @@ const noteImageStudio = (() => {
             if(event.shiftKey&&(document.activeElement===first||!el('noteImageEditModal').contains(document.activeElement))){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}return;
         }
         if(event.target===el('studio-text-editor')){if(event.key==='Escape'){event.preventDefault();finishText(true);}else if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();finishText();el('studio-artboard').focus();}return;}
-        if(event.key==='Escape'){event.preventDefault();if(s.imageCrop)closeImageCrop();else if(s.gesture)cancelGesture();else if(['arrow','rect','line','ellipse'].includes(s.tool))setTool('select');else if(s.selected.length)setSelection([]);else close();return;}
+        if(event.key==='Escape'){event.preventDefault();if(s.imageCrop)closeImageCrop();else if(s.gesture)cancelGesture();else if(['arrow','rect','line','ellipse','pen','highlight','text'].includes(s.tool))setTool('select');else if(s.selected.length)setSelection([]);else close();return;}
         if(s.imageCrop){if(event.key==='Enter'&&!inputTarget(event.target)){event.preventDefault();void action('crop-apply');}return;}
         if(inputTarget(event.target))return;const key=event.key.toLowerCase(),mod=event.ctrlKey||event.metaKey;
         if(mod&&(key==='c'||key==='v'||key==='x'))return;
@@ -9169,7 +9178,8 @@ const noteImageStudio = (() => {
         else if(event.code==='Space'){event.preventDefault();space=true;update();}
         else if(event.key==='Delete'||event.key==='Backspace'){event.preventDefault();void action('delete');}
         else if(event.key.startsWith('Arrow')){event.preventDefault();const step=event.shiftKey?10:1;change(()=>applyTransform(M.translate(event.key==='ArrowRight'?step:event.key==='ArrowLeft'?-step:0,event.key==='ArrowDown'?step:event.key==='ArrowUp'?-step:0)));}
-        else if(!mod&&!event.altKey&&noteStudioUI.shortcuts[key]){event.preventDefault();setTool(noteStudioUI.shortcuts[key]);}
+        // W／S：在左側工具列往上／往下換工具（取代原本 V、P、T… 各自的快捷鍵）。
+        else if(!mod&&!event.altKey&&(event.code==='KeyW'||event.code==='KeyS')){event.preventDefault();stepTool(event.code==='KeyW'?-1:1);}
     },true);
     window.addEventListener('keyup',event=>{if(session&&event.code==='Space'){event.preventDefault();space=false;update();}},true);
     function releaseInteraction(){if(session){space=false;cancelGesture();clearWheel();session.pointers.clear();session.pinch=null;}}

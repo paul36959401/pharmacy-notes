@@ -250,11 +250,20 @@ const noteImageStudio = (() => {
     function showShape(tool){
         if(!noteStudioUI.SHAPES.includes(tool))return;
         const main=el('noteImageEditModal').querySelector('[data-studio-shape-main]');if(!main)return;
-        const [,icon,label,key]=noteStudioUI.shapeInfo(tool);
-        main.dataset.studioTool=tool;main.title=label+'（'+key+'）';main.querySelector('b').textContent=icon;main.querySelector('span').textContent=label;
+        const [,icon,label]=noteStudioUI.shapeInfo(tool);
+        main.dataset.studioTool=tool;main.title=label+'（W／S 上下切換工具）';main.querySelector('b').textContent=icon;main.querySelector('span').textContent=label;
         try{localStorage.setItem('nd-studio-shape',tool);}catch(_){}
     }
-    function setTool(tool){if(!session?.ready||session.busy)return;showShape(tool);finishText();cancelGesture();session.tool=tool;session.selected=[];update();if(tool==='crop')fit();else schedule();message(({select:'拖曳空白處移動畫面；拖曳標記可移動它；Ctrl+拖曳框選；Shift 多選，Alt 選群組內物件。',hand:'拖曳移動畫布；滾輪縮放。',crop:'拖曳選取裁切範圍，設定比例後按「完成裁切」。',text:'點畫布新增文字，雙擊已有文字編輯。'})[tool]||'在畫布上拖曳新增'+(names[tool]||'標記')+'；按 V 返回選取。');}
+    function stepTool(delta){
+        const s=session;if(!s?.ready||s.busy)return;
+        const buttons=[...el('noteImageEditModal').querySelectorAll('.studio-tools [data-studio-tool]')].filter(b=>!b.disabled&&b.getClientRects().length);
+        if(!buttons.length)return;
+        const at=buttons.findIndex(b=>b.dataset.studioTool===s.tool);
+        const next=buttons[((at<0?0:at+delta)%buttons.length+buttons.length)%buttons.length];
+        setTool(next.dataset.studioTool);
+        next.scrollIntoView({block:'nearest',inline:'nearest'});
+    }
+    function setTool(tool){if(!session?.ready||session.busy)return;showShape(tool);finishText();cancelGesture();session.tool=tool;session.selected=[];update();if(tool==='crop')fit();else schedule();message(({select:'拖曳空白處移動畫面；拖曳標記可移動它；Ctrl+拖曳框選；Shift 多選，Alt 選群組內物件。',hand:'拖曳移動畫布；滾輪縮放。',crop:'拖曳選取裁切範圍，設定比例後按「完成裁切」。',text:'點畫布新增文字，雙擊已有文字編輯。'})[tool]||'在畫布上拖曳新增'+(names[tool]||'標記')+'；W／S 換工具，Esc 回到選取。');}
     function setStyle(values){
         const s=session;if(!s?.ready||s.busy)return;const items=editable();
         if(Object.hasOwn(values,'bold'))values={...values,weight:values.bold?700:400};if(Object.hasOwn(values,'weight'))values={...values,bold:values.weight>=600};
@@ -508,7 +517,7 @@ const noteImageStudio = (() => {
             if(event.shiftKey&&(document.activeElement===first||!el('noteImageEditModal').contains(document.activeElement))){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}return;
         }
         if(event.target===el('studio-text-editor')){if(event.key==='Escape'){event.preventDefault();finishText(true);}else if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();finishText();el('studio-artboard').focus();}return;}
-        if(event.key==='Escape'){event.preventDefault();if(s.imageCrop)closeImageCrop();else if(s.gesture)cancelGesture();else if(['arrow','rect','line','ellipse'].includes(s.tool))setTool('select');else if(s.selected.length)setSelection([]);else close();return;}
+        if(event.key==='Escape'){event.preventDefault();if(s.imageCrop)closeImageCrop();else if(s.gesture)cancelGesture();else if(['arrow','rect','line','ellipse','pen','highlight','text'].includes(s.tool))setTool('select');else if(s.selected.length)setSelection([]);else close();return;}
         if(s.imageCrop){if(event.key==='Enter'&&!inputTarget(event.target)){event.preventDefault();void action('crop-apply');}return;}
         if(inputTarget(event.target))return;const key=event.key.toLowerCase(),mod=event.ctrlKey||event.metaKey;
         if(mod&&(key==='c'||key==='v'||key==='x'))return;
@@ -520,7 +529,8 @@ const noteImageStudio = (() => {
         else if(event.code==='Space'){event.preventDefault();space=true;update();}
         else if(event.key==='Delete'||event.key==='Backspace'){event.preventDefault();void action('delete');}
         else if(event.key.startsWith('Arrow')){event.preventDefault();const step=event.shiftKey?10:1;change(()=>applyTransform(M.translate(event.key==='ArrowRight'?step:event.key==='ArrowLeft'?-step:0,event.key==='ArrowDown'?step:event.key==='ArrowUp'?-step:0)));}
-        else if(!mod&&!event.altKey&&noteStudioUI.shortcuts[key]){event.preventDefault();setTool(noteStudioUI.shortcuts[key]);}
+        // W／S：在左側工具列往上／往下換工具（取代原本 V、P、T… 各自的快捷鍵）。
+        else if(!mod&&!event.altKey&&(event.code==='KeyW'||event.code==='KeyS')){event.preventDefault();stepTool(event.code==='KeyW'?-1:1);}
     },true);
     window.addEventListener('keyup',event=>{if(session&&event.code==='Space'){event.preventDefault();space=false;update();}},true);
     function releaseInteraction(){if(session){space=false;cancelGesture();clearWheel();session.pointers.clear();session.pinch=null;}}
