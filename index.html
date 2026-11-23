@@ -12,10 +12,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="藥學筆記">
 <title>藥學筆記雲端</title>
-<link rel="stylesheet" href="css/app.css?v=2026-11-22-pages-v23">
-<link rel="stylesheet" href="css/icons.css?v=2026-11-22-pages-v23">
-<link rel="stylesheet" href="css/site.css?v=2026-11-22-pages-v23">
-<link rel="stylesheet" href="css/theme.css?v=2026-11-22-pages-v23">
+<link rel="stylesheet" href="css/app.css?v=2026-11-23-pages-v24">
+<link rel="stylesheet" href="css/icons.css?v=2026-11-23-pages-v24">
+<link rel="stylesheet" href="css/site.css?v=2026-11-23-pages-v24">
+<link rel="stylesheet" href="css/theme.css?v=2026-11-23-pages-v24">
 <script>/* apply the saved light/dark choice before the page draws */try{var c=localStorage.getItem('nd-theme')||'light';document.documentElement.dataset.theme=(c==='dark'||(c==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light';var z=localStorage.getItem('nd-reading-zoom'),l=localStorage.getItem('nd-reading-line'),d=document.documentElement;if(z&&z!=='1'){d.dataset.readingZoom=z;d.style.setProperty('--reading-zoom',z);}if(l&&l!=='normal')d.dataset.readingLine=l;}catch(e){}</script>
 </head>
 <body>
@@ -116,6 +116,9 @@
 
         <div class="editor-toolbar">
             <div class="toolbar-row toolbar-row-main">
+                <button type="button" id="editor-undo" class="editor-history-button" title="復原上一步 (Ctrl+Z)" aria-label="復原上一步" disabled>↶</button>
+                <button type="button" id="editor-redo" class="editor-history-button" title="重做下一步 (Ctrl+Y)" aria-label="重做下一步" disabled>↷</button>
+                <span class="editor-history-divider" aria-hidden="true"></span>
                 <button type="button" data-on-mousedown="applyEditorCommand" data-args="[&quot;bold&quot;]" data-prevent title="粗體 (Ctrl+B)"><i class="fas fa-bold"></i></button>
                 <button type="button" data-on-mousedown="applyEditorCommand" data-args="[&quot;italic&quot;]" data-prevent title="斜體 (Ctrl+I)"><i class="fas fa-italic"></i></button>
                 <button type="button" data-on-mousedown="applyEditorCommand" data-args="[&quot;underline&quot;]" data-prevent title="底線 (Ctrl+U)"><i class="fas fa-underline"></i></button>
@@ -415,9 +418,9 @@
     </div>
 </div>
 
-<script src="js/config.js?v=2026-11-22-pages-v23"></script>
-<script src="js/auth.js?v=2026-11-22-pages-v23"></script>
-<script src="js/drive-server.js?v=2026-11-22-pages-v23"></script>
-<script src="js/boot.js?v=2026-11-22-pages-v23"></script>
+<script src="js/config.js?v=2026-11-23-pages-v24"></script>
+<script src="js/auth.js?v=2026-11-23-pages-v24"></script>
+<script src="js/drive-server.js?v=2026-11-23-pages-v24"></script>
+<script src="js/boot.js?v=2026-11-23-pages-v24"></script>
 </body>
 </html>

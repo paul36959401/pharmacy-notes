@@ -503,7 +503,7 @@ try {
         const current = await page.$eval('#manual-body', b => b.querySelector('.manual-release h4 span')?.textContent);
         await page.click('[data-manual-tab="faq"]');
         const faq = await page.$$eval('#manual-body details', d => d.length);
-        check(features > 40 && /按 V/.test(found) && current === '目前版本' && faq >= 10, 'manual lists features, finds 「回到選取」, marks the current version, has Q&A: ' + JSON.stringify({features, current, faq}));
+        check(features > 40 && /W／S/.test(found) && current === '目前版本' && faq >= 10, 'manual lists features, finds 「回到選取」, marks the current version, has Q&A: ' + JSON.stringify({features, current, faq}));
         await page.click('#manualModal .btn-cancel');
     }
     // 閱讀字體／行距: only the reading view changes, never the notes.
@@ -635,6 +635,38 @@ try {
         check(r.purple && r.after.length === 16 && r.before.every((c, i) => r.after[i] === c) && r.last === r.before[0] && JSON.stringify(synced) === JSON.stringify(r.after),
             'saved colours: #a242f0 back, 16 kept in place (new ones never push old ones out), shared via Drive: ' + JSON.stringify({before: r.before, n: r.after.length, synced: !!synced}));
         await page.evaluate(before => {editorColorMemory.textColor = before; saveEditorColorMemory();}, r.before);
+    }
+    // 復原／重做 in the note editor: an accidental Ctrl+V over a selection can be undone and redone.
+    {
+        const original = await page.evaluate(() => notesData.find(x => x.id === 'n1').text);
+        await page.evaluate(() => openEditModal('n1'));
+        await page.waitForSelector('#noteModal.active #modal-text');
+        await page.waitForTimeout(600);
+        const disabledAtStart = await page.$eval('#editor-undo', b => b.disabled);
+        await page.click('#modal-text'); await page.keyboard.press('Control+End'); await page.keyboard.type('ABC');
+        await page.waitForTimeout(1500);
+        await page.evaluate(() => {const b = document.querySelector('#modal-text b'); const r = document.createRange(); r.selectNodeContents(b); getSelection().removeAllRanges(); getSelection().addRange(r);});
+        await page.evaluate(() => {const dt = new DataTransfer(); dt.setData('text/plain', 'PASTED'); document.querySelector('#modal-text b').dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true}));});
+        await page.waitForTimeout(200);
+        const text = () => page.$eval('#modal-text', el => el.textContent);
+        const pasted = await text();
+        await page.click('#editor-undo'); await page.waitForTimeout(200);
+        const undone = await text();
+        await page.click('#editor-redo'); await page.waitForTimeout(200);
+        const redone = await text();
+        await page.keyboard.press('Control+z'); await page.waitForTimeout(200);
+        const keyUndo = await text();
+        await page.keyboard.press('Control+z'); await page.waitForTimeout(200);
+        const beforeTyping = await text();
+        await page.keyboard.press('Control+y'); await page.waitForTimeout(200);
+        const keyRedo = await text();
+        check(disabledAtStart && pasted.includes('PASTED') && !pasted.includes('Omeprazole') && undone.includes('Omeprazole') && !undone.includes('PASTED') && undone.includes('ABC')
+            && redone.includes('PASTED') && keyUndo.includes('Omeprazole') && !beforeTyping.includes('ABC') && keyRedo.includes('ABC') && !keyRedo.includes('PASTED'),
+            'undo / redo buttons and Ctrl+Z / Ctrl+Y bring back text overwritten by a paste: ' + JSON.stringify({disabledAtStart, pasted: pasted.slice(0, 30), undone: undone.slice(0, 30), beforeTyping: beforeTyping.slice(-20), keyRedo: keyRedo.slice(-20)}));
+        await page.keyboard.press('Escape'); await page.waitForTimeout(600);
+        const saved = await page.evaluate(() => notesData.find(x => x.id === 'n1').text);
+        check(saved.includes('Omeprazole') && !saved.includes('PASTED'), 'the undone content is what gets saved');
+        await page.evaluate(t => {notesData.find(x => x.id === 'n1').text = t; autoSave(100);}, original);
     }
     // Sign-in renewal: with < 10 minutes left, the next button click renews it.
     {
