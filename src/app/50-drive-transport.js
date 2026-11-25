@@ -78,15 +78,56 @@ function createNoteDriveCloud(options){
         const image=new Image();image.src=value;
         try{
             await noteImageReady(image);
-            const scale=Math.min(1,1280/image.naturalWidth,4096/image.naturalHeight,Math.sqrt(3000000/(image.naturalWidth*image.naturalHeight)));
-            const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
-            canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
-            let blob=await new Promise(r=>canvas.toBlob(r,'image/webp',.86));
-            if(blob?.size>490000){canvas.width=Math.max(1,Math.round(canvas.width*.65));canvas.height=Math.max(1,Math.round(canvas.height*.65));canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);blob=await new Promise(r=>canvas.toBlob(r,'image/webp',.74));}
+            if(!image.naturalWidth||!image.naturalHeight)return null;
+            let scale=Math.min(1,1280/image.naturalWidth,4096/image.naturalHeight,Math.sqrt(3000000/(image.naturalWidth*image.naturalHeight)));
+            const canvas=document.createElement('canvas');let blob=null;
+            // WebP where the browser can make it; otherwise (iPhone / Safari) JPEG. Shrink until it fits.
+            for(let attempt=0;attempt<5;attempt++){
+                canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+                const ctx=canvas.getContext('2d');ctx.drawImage(image,0,0,canvas.width,canvas.height);
+                blob=await new Promise(r=>canvas.toBlob(r,'image/webp',.86));
+                if(!blob||blob.type!=='image/webp'){
+                    ctx.globalCompositeOperation='destination-over';ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.globalCompositeOperation='source-over';
+                    blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',.85));
+                }
+                if(blob&&blob.size<=490000)break;
+                scale*=.72;
+            }
             if(!blob||blob.size>500000)throw new Error('preview');
             const dimensions={width:image.naturalWidth,height:image.naturalHeight};canvas.width=canvas.height=1;
             return {blob,...dimensions};
         }catch(_){return null;}
+    }
+    /* Pictures saved without a preview (older iPhone uploads): make the preview here from the
+       original, show it at once, and save it to the cloud so every device has it next time. */
+    const repairs=new Map(),pendingRepairs=new Map();let repairTimer=0;
+    function repairPreview(id,priority=0){
+        if(repairs.has(id))return repairs.get(id);
+        const job=(async()=>{
+            const value=await ensureAsset(id,undefined,priority);
+            const preview=await makePreview(value);
+            if(!preview)throw noteDriveError('這張圖片無法產生預覽，點擊可讀取原圖。','NO_PREVIEW',false);
+            const src='data:'+preview.blob.type+';base64,'+b64(new Uint8Array(await preview.blob.arrayBuffer()));
+            void (async()=>{
+                if(noteDriveServer.isReadOnly?.())return;
+                const file=await upload(preview.blob,'preview');rememberPreview(file.key,src);
+                pendingRepairs.set(id,{file,width:preview.width,height:preview.height});
+                clearTimeout(repairTimer);repairTimer=setTimeout(()=>void saveRepairs().catch(()=>{}),4000);
+            })().catch(()=>{});
+            return src;
+        })();
+        repairs.set(id,job);job.catch(()=>repairs.delete(id));return job;
+    }
+    async function saveRepairs(){
+        if(!loaded||!pendingRepairs.size)return;
+        await serialize(async()=>{
+            const changes=[];
+            for(const[id,p]of pendingRepairs){const d=assets.get(id);if(d&&!d.preview&&d.kind!=='legacy')changes.push([id,{...d,preview:p.file,width:p.width,height:p.height}]);}
+            pendingRepairs.clear();if(!changes.length)return;
+            const previous=new Map(changes.map(([id])=>[id,assets.get(id)]));changes.forEach(([id,d])=>assets.set(id,d));
+            try{await writeNow(records);}catch(e){previous.forEach((d,id)=>assets.set(id,d));throw e;}
+            for(const[,d]of changes){encoded.set(d.valueHash,d);await cache.put([['encoded:'+d.valueHash,d]]);}
+        });
     }
     async function encode(value,withPreview=true,depth=0,signal){
         noteDriveCheckSignal(signal);
@@ -169,7 +210,8 @@ function createNoteDriveCloud(options){
     async function ensurePreview(id,{priority=0}={}){
         const d=assets.get(id);
         if(!d)return getAsset(id)??ensureAsset(id);
-        if(!d.preview)throw noteDriveError(d.kind==='legacy'?'舊原圖尚未搬移完成，點擊可先讀取原圖。':'這張圖片未產生預覽，點擊可讀取原圖。','NO_PREVIEW',false);
+        if(!d.preview&&d.kind==='legacy')throw noteDriveError('舊原圖尚未搬移完成，點擊可先讀取原圖。','NO_PREVIEW',false);
+        if(!d.preview)return repairPreview(id,priority);
         const p=d.preview;if(previewValues.has(p.key))return previewValues.get(p.key);
         if(previewJobs.has(p.key)){const existing=previewJobs.get(p.key);existing.priority=Math.min(existing.priority,priority);schedulePreviews();return existing.promise;}
         const entry={file:p,priority,started:false,promise:null};

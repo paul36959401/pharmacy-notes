@@ -718,6 +718,41 @@ try {
         check(tabs.join('|') === '最近|自訂|常用|希臘字母|物理／化學|數學／上下標|標點／單位' && modes.join('|') === '符號|英文／數字|注音' && shared?.slice(0, 2).join('') === '★※' && otherRecent.join('') === '★※',
             'tabs 最近→自訂→常用→希臘字母→物理／化學→數學→標點; 自訂 is no longer a top tab; recent symbols are shared between devices: ' + JSON.stringify({tabs, modes, shared, otherRecent}));
     }
+    // Pictures added on a phone whose browser could not make a preview still show on the computer
+    // (the computer makes the preview and saves it); Safari-style browsers now get JPEG previews.
+    {
+        const phoneImg = await png(360, 220, '#2563eb', 'phone');
+        const safariImg = await png(300, 200, '#16a34a', 'safari');
+        const phone = await browser.newContext({viewport: {width: 390, height: 800}, serviceWorkers: 'block'});
+        await phone.addInitScript(() => {
+            const original = HTMLCanvasElement.prototype.toBlob;
+            HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+                if (window.__noPreview) return callback(null);
+                return original.call(this, callback, type === 'image/webp' ? 'image/png' : type, quality);   // like Safari: no WebP
+            };
+        });
+        await drive.install(phone);
+        const pp = await phone.newPage(); pp.on('dialog', d => d.accept());
+        await pp.goto(BASE + '?book=pharmacology'); await signInAndWait(pp);
+        await pp.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
+        const addNote = (id, img) => pp.evaluate(([id, img]) => {window.__noPreview = id === 'phone-a'; notesData.unshift({id, title: '', text: '<p>手機圖片</p><p><img src="' + img + '"></p>', categoryIds: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()}); autoSave(100);}, [id, img]);
+        const synced = page_ => page_.waitForFunction(() => document.getElementById('sync-status')?.dataset.syncState === 'success' && !notePersistence.hasUnsavedChanges(), null, {timeout: 60000}).catch(() => {});
+        await addNote('phone-a', phoneImg); await pp.waitForTimeout(800); await synced(pp);
+        await addNote('phone-b', safariImg); await pp.waitForTimeout(800); await synced(pp);
+        const ids = await pp.evaluate(() => Object.fromEntries(['phone-a', 'phone-b'].map(id => [id, (notesData.find(n => n.id === id).text.match(/note-local-asset:([a-zA-Z0-9-]+)/) || [])[1]])));
+        const phoneDesc = await pp.evaluate(ids => noteDriveCloud.snapshotAssetDescriptors(Object.values(ids)), ids);
+        await phone.close();
+        await page.reload(); await signInAndWait(page);
+        await page.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
+        await page.fill('#search-input', '手機圖片'); await page.waitForTimeout(800);
+        const shown = await page.waitForFunction(() => {const img = document.querySelector('.note-item[data-id="phone-a"] img'); return img && /^data:image\//.test(img.getAttribute('src') || '') && !img.classList.contains('cloud-image-error') && img.naturalWidth > 0;}, null, {timeout: 30000}).then(() => true).catch(() => false);
+        await page.waitForTimeout(6000);
+        const repaired = await page.evaluate(id => !!noteDriveCloud.snapshotAssetDescriptors([id])[id]?.preview, ids['phone-a']);
+        await page.fill('#search-input', ''); await page.evaluate(() => filterNotes());
+        check(!phoneDesc[ids['phone-a']]?.preview && shown && repaired, 'picture saved without a preview still shows on the computer, and its preview is saved for next time: ' + JSON.stringify({shown, repaired}));
+        check(phoneDesc[ids['phone-b']]?.preview?.mime === 'image/jpeg', 'browsers without WebP (iPhone) now make JPEG previews: ' + JSON.stringify(phoneDesc[ids['phone-b']]?.preview?.mime));
+        await page.evaluate(() => {notesData = notesData.filter(n => !String(n.id).startsWith('phone-')); autoSave(100);});
+    }
     // Sign-in renewal: with < 10 minutes left, the next button click renews it.
     {
         const other = await open('renew');
