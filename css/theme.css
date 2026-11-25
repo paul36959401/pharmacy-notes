@@ -507,3 +507,6 @@ body .category-manager-row {grid-template-columns: 130px minmax(130px, 1fr) auto
 #note-floating-keyboard #nk-symbol-grid {max-height: none; overflow: visible;}
 #note-floating-keyboard #nk-symbols {padding-bottom: 6px;}
 #note-floating-keyboard .nk-empty {grid-column: 1 / -1; margin: 6px 2px; color: #78716c; font-size: 12px;}
+#note-floating-keyboard #nk-custom-grid {max-height: none; overflow: visible; margin-top: 6px;}
+#note-floating-keyboard .nk-symbol-grid button.nk-long {font-size: 12px; letter-spacing: -.2px;}
+#note-floating-keyboard #nk-symbol-grid[hidden], #note-floating-keyboard #nk-custom[hidden] {display: none;}

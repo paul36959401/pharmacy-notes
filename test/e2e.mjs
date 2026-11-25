@@ -677,6 +677,20 @@ try {
         await page.click('#note-keyboard-toggle');
         await page.waitForSelector('#nk-groups button');
         const tabs = await page.$$eval('#nk-groups button', b => b.map(x => x.textContent.trim()));
+        const modes = await page.$$eval('#note-floating-keyboard [data-nk-mode]', b => b.map(x => x.textContent.trim()));
+        // 自訂 inside the symbols page: add one and type it; no 退格／空白 rows there.
+        await page.click('#nk-groups [data-nk-group="custom"]');
+        await page.fill('#nk-custom-value', '⇌Test'); await page.click('#nk-custom-save');
+        const customView = await page.evaluate(() => ({form: !document.getElementById('nk-custom').hidden, grid: document.getElementById('nk-symbol-grid').hidden, keys: [...document.querySelectorAll('#nk-custom-grid button')].map(b => b.textContent), edit: !!document.querySelector('#nk-symbols [data-nk-action="space"], #nk-symbols .nk-edit-row')}));
+        await page.click('#modal-text'); await page.keyboard.press('Control+End');
+        await page.click('#nk-custom-grid button:has-text("⇌Test")');
+        const typed = await page.$eval('#modal-text', el => el.textContent.includes('⇌Test'));
+        await page.click('#nk-groups [data-nk-group="physchem"]');
+        const phys = await page.$$eval('#nk-symbol-grid [data-nk-text]', b => b.map(x => x.dataset.nkText));
+        await page.screenshot({path: '/tmp/keyboard-phys.png'});
+        check(customView.form && customView.grid && customView.keys.includes('⇌Test') && !customView.edit && typed && phys.includes('⇌') && phys.includes('H₃O⁺') && phys.includes('t½') && phys.length > 60,
+            '自訂 lives in the symbols page (no 退格／空白); 物理／化學 symbols available: ' + JSON.stringify({customView, typed, phys: phys.length}));
+        await page.evaluate(() => {/* remove the test symbol */});
         await page.click('#nk-groups [data-nk-group="math"]');
         const fits = await page.evaluate(() => {const g = document.getElementById('nk-symbol-grid'), p = document.getElementById('note-floating-keyboard'), b = p.querySelector('.nk-body'); return {grid: g.scrollHeight <= g.clientHeight + 1, body: b.scrollHeight <= b.clientHeight + 1, edit: !!document.querySelector('#nk-symbols .nk-edit-row, #nk-symbols [data-nk-action="space"]'), n: g.children.length};});
         await page.screenshot({path: '/tmp/keyboard.png'});
@@ -701,8 +715,8 @@ try {
         await other.page.click('#nk-groups [data-nk-group="recent"]');
         const otherRecent = await other.page.$$eval('#nk-symbol-grid [data-nk-text]', b => b.map(x => x.dataset.nkText).slice(0, 2));
         await other.context.close();
-        check(tabs[0] === '最近' && tabs[1] === '常用' && shared?.slice(0, 2).join('') === '★※' && otherRecent.join('') === '★※',
-            '最近 is the first tab; recent symbols are shared between devices: ' + JSON.stringify({tabs, shared, otherRecent}));
+        check(tabs.join('|') === '最近|自訂|常用|希臘字母|物理／化學|數學／上下標|標點／單位' && modes.join('|') === '符號|英文／數字|注音' && shared?.slice(0, 2).join('') === '★※' && otherRecent.join('') === '★※',
+            'tabs 最近→自訂→常用→希臘字母→物理／化學→數學→標點; 自訂 is no longer a top tab; recent symbols are shared between devices: ' + JSON.stringify({tabs, modes, shared, otherRecent}));
     }
     // Sign-in renewal: with < 10 minutes left, the next button click renews it.
     {

@@ -9349,14 +9349,24 @@ const noteImageViewer=(()=>{
  * SOFTWARE.
  */
 const noteFloatingKeyboard=(()=>{
-    const $=id=>document.getElementById(id),modes=['symbols','english','zhuyin','custom'];
+    const $=id=>document.getElementById(id),modes=['symbols','english','zhuyin'];
     const defaultWidth=420,minWidth=300,maxWidth=760,candidateCount=6,commands={};
     const symbolGroups={
         common:{name:'常用',values:['→','←','↑','↓','↔','⇒','⇔','↗','↘','↳','★','☆','✓','✗','☑','☐','●','○','■','□','▲','△','▼','▽','◆','◇','※','±','×','÷','≠','≈','≤','≥','∞','℃','α','β','γ','δ']},
         greek:{name:'希臘字母',values:[...'αβγδεζηθικλμνξοπρστυφχψω','ς',...'ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ']},
+        physchem:{name:'物理／化學',values:['⇌','→','↑','↓','↔','Δ','hν','‡','°','—','═','≡','⌬',
+            '₀','₁','₂','₃','₄','₅','₆','₇','₈','₉','⁺','⁻','²⁺','³⁺','²⁻','³⁻','δ⁺','δ⁻','e⁻',
+            'H⁺','OH⁻','H₃O⁺','Na⁺','K⁺','Ca²⁺','Mg²⁺','Cl⁻','HCO₃⁻','NH₄⁺','SO₄²⁻','PO₄³⁻','CO₂','O₂','H₂O',
+            '(s)','(l)','(g)','(aq)','(R)','(S)',
+            'pKₐ','Kₐ','Kₘ','Vₘₐₓ','Cₘₐₓ','Tₘₐₓ','t½','kₑ','ED₅₀','LD₅₀','IC₅₀','EC₅₀',
+            'Å','μ','λ','ν','Ω','℃','Hz','nm','Da','mOsm','ppm','¹⁴C','³H','¹³¹I','⁹⁹ᵐTc']},
         math:{name:'數學／上下標',values:['+','−','×','÷','=','≠','≈','≡','≤','≥','±','∓','∞','∝','√','∑','∏','∫','∂','∆','∇','∈','∉','∪','∩','⊂','⊃','∴','∵',...'⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻',...'₀₁₂₃₄₅₆₇₈₉₊₋']},
         punctuation:{name:'標點／單位',values:['，','。','、','；','：','！','？','「','」','『','』','（','）','【','】','《','》','〈','〉','…','—','·','～','％','‰','°','℃','℉','μg','mg','g','mL','L','mmHg','mEq','mol/L','®','©','™']}
     };
+    const symbolLabels={'⇌':'可逆反應／平衡','↑':'氣體生成','↓':'沉澱','Δ':'加熱／變化量','hν':'光照','‡':'過渡態','°':'度／標準狀態','—':'單鍵','═':'雙鍵','≡':'參鍵','⌬':'苯環',
+        'δ⁺':'部分正電','δ⁻':'部分負電','e⁻':'電子','(s)':'固體','(l)':'液體','(g)':'氣體','(aq)':'水溶液','(R)':'R 構型','(S)':'S 構型',
+        'pKₐ':'pKa','Kₐ':'酸解離常數','Kₘ':'Michaelis 常數','Vₘₐₓ':'最大反應速率','Cₘₐₓ':'最高血中濃度','Tₘₐₓ':'達最高濃度時間','t½':'半衰期','kₑ':'排除速率常數',
+        'ED₅₀':'半數有效劑量','LD₅₀':'半數致死劑量','IC₅₀':'半數抑制濃度','EC₅₀':'半數有效濃度','Å':'埃（10⁻¹⁰ m）','ν':'頻率','λ':'波長','Ω':'歐姆','mOsm':'毫滲透莫耳','⁹⁹ᵐTc':'鎝-99m'};
     const greekNames=['alpha','beta','gamma','delta','epsilon','zeta','eta','theta','iota','kappa','lambda','mu','nu','xi','omicron','pi','rho','sigma','tau','upsilon','phi','chi','psi','omega'];
     const greekLabels=Object.fromEntries([... 'αβγδεζηθικλμνξοπρστυφχψω'].flatMap((c,i)=>[[c,greekNames[i]],[c.toUpperCase(),greekNames[i]+' 大寫']]));
     const englishRows=['1234567890-=','qwertyuiop[]','asdfghjkl;\'','zxcvbnm,./'];
@@ -9502,11 +9512,15 @@ const noteFloatingKeyboard=(()=>{
         return {pull,used,refresh};
     })();
     function renderSymbols(){
+        const isCustom=group==='custom';
+        $('nk-custom').hidden=!isCustom;$('nk-symbol-grid').hidden=isCustom;
+        panel.querySelectorAll('[data-nk-group]').forEach(node=>node.setAttribute('aria-pressed',String(node.dataset.nkGroup===group)));
+        if(isCustom){lastSymbolKey='';renderCustom();return;}
         const renderKey=group+(group==='recent'?JSON.stringify(preferences.recent):'');if(lastSymbolKey===renderKey)return;lastSymbolKey=renderKey;
         const grid=$('nk-symbol-grid');grid.replaceChildren();
         const values=group==='recent'?preferences.recent:symbolGroups[group].values;
         if(group==='recent'&&!values.length){const hint=document.createElement('p');hint.className='nk-empty';hint.textContent='還沒有用過的符號；用過的會出現在這裡（手機和電腦共用）。';grid.append(hint);}
-        for(const text of values)grid.append(button(text,{nkText:text},greekLabels[text]?text+' '+greekLabels[text]:'輸入 '+text));
+        for(const text of values){const key=button(text,{nkText:text},greekLabels[text]?text+' '+greekLabels[text]:symbolLabels[text]?text+' '+symbolLabels[text]:'輸入 '+text);if([...text].length>2)key.classList.add('nk-long');grid.append(key);}
         if(!values.length){const hint=document.createElement('p');hint.className='nk-hint';hint.textContent='點過的符號會出現在這裡。';grid.append(hint);}
         panel.querySelectorAll('[data-nk-group]').forEach(node=>node.setAttribute('aria-pressed',String(node.dataset.nkGroup===group)));
     }
@@ -9570,7 +9584,7 @@ const noteFloatingKeyboard=(()=>{
         if(!panel)return;
         panel.querySelectorAll('[data-nk-mode]').forEach(node=>node.setAttribute('aria-pressed',String(node.dataset.nkMode===mode)));
         for(const name of modes)$('nk-'+name).hidden=name!==mode;
-        if(mode==='symbols')renderSymbols();if(mode==='english')renderEnglish();if(mode==='zhuyin')renderPhonetic();if(mode==='custom')renderCustom();
+        if(mode==='symbols')renderSymbols();if(mode==='english')renderEnglish();if(mode==='zhuyin')renderPhonetic();
         mountCommands();applySize();scheduleClamp();
     }
     function setMode(next){if(!modes.includes(next))return;mode=next;render();if(mode==='zhuyin'&&!dictionary)void loadDictionary().then(()=>{if(mode==='zhuyin')renderPhonetic();}).catch(()=>{message('字庫未能載入，請再點注音重試。');});}
@@ -9667,17 +9681,17 @@ const noteFloatingKeyboard=(()=>{
         panel=document.createElement('section');panel.id='note-floating-keyboard';panel.hidden=true;panel.setAttribute('role','region');panel.setAttribute('aria-label','浮動文字鍵盤');
         const editRows='<div class="nk-command-rows"><div class="nk-key-row nk-edit-row"></div><div class="nk-key-row nk-nav-row"></div></div>';
         panel.setAttribute('aria-description','右鍵關閉；按住左鍵拖曳移動；右下角縮放。');
-        panel.innerHTML=`<div class="nk-content"><nav class="nk-tabs" aria-label="鍵盤類型" title="按住左鍵拖曳移動；右鍵關閉；右下角縮放">${[['symbols','符號'],['english','英文／數字'],['zhuyin','注音'],['custom','自訂']].map(([id,label])=>`<button type="button" data-nk-mode="${id}" aria-pressed="false">${label}</button>`).join('')}</nav>
-          <div class="nk-body"><section id="nk-symbols"><nav id="nk-groups" aria-label="符號分類"></nav><div id="nk-symbol-grid" class="nk-symbol-grid"></div></section>
+        panel.innerHTML=`<div class="nk-content"><nav class="nk-tabs" aria-label="鍵盤類型" title="按住左鍵拖曳移動；右鍵關閉；右下角縮放">${[['symbols','符號'],['english','英文／數字'],['zhuyin','注音']].map(([id,label])=>`<button type="button" data-nk-mode="${id}" aria-pressed="false">${label}</button>`).join('')}</nav>
+          <div class="nk-body"><section id="nk-symbols"><nav id="nk-groups" aria-label="符號分類"></nav><div id="nk-symbol-grid" class="nk-symbol-grid"></div><div id="nk-custom" hidden><div class="nk-custom-form"><label>符號／短語<input id="nk-custom-value" type="text" maxlength="128" placeholder="貼上想保存的符號" autocomplete="off"></label><label>名稱（選填）<input id="nk-custom-label" type="text" maxlength="30" placeholder="方便辨識的名稱" autocomplete="off"></label><button type="button" id="nk-custom-save" data-nk-action="save-custom">加入</button></div><div class="nk-custom-tools"><button type="button" id="nk-custom-edit" data-nk-action="edit-custom">編輯符號</button><button type="button" id="nk-custom-manage" data-nk-action="remove-custom">刪除符號</button><button type="button" data-nk-action="export">匯出備份</button><button type="button" data-nk-action="import">匯入</button><input id="nk-import-file" type="file" accept="application/json,.json" hidden></div><p id="nk-custom-hint" class="nk-hint"></p><div id="nk-custom-grid" class="nk-symbol-grid"></div></div></section>
           <section id="nk-english" hidden><div id="nk-english-grid"></div></section>
           <section id="nk-zhuyin" hidden><div class="nk-composition-row"><output id="nk-composition" aria-label="注音組字"></output><button type="button" data-nk-action="clear-phonetic">清除</button><button type="button" data-nk-action="literal-phonetic" title="直接輸入注音符號">注音原字</button><span class="nk-candidate-controls"><button type="button" id="nk-candidate-prev" data-nk-action="candidate-prev" aria-label="上一頁候選字" title="上一頁候選字">‹</button><span id="nk-candidate-page"></span><button type="button" id="nk-candidate-next" data-nk-action="candidate-next" aria-label="下一頁候選字" title="下一頁候選字">›</button></span></div><div id="nk-candidates" class="nk-candidates" role="group"></div><div id="nk-phonetic-grid"></div></section>
-          <section id="nk-custom" hidden><div class="nk-custom-form"><label>符號／短語<input id="nk-custom-value" type="text" maxlength="128" placeholder="貼上想保存的符號" autocomplete="off"></label><label>名稱（選填）<input id="nk-custom-label" type="text" maxlength="30" placeholder="方便辨識的名稱" autocomplete="off"></label><button type="button" id="nk-custom-save" data-nk-action="save-custom">加入</button></div><div class="nk-custom-tools"><button type="button" id="nk-custom-edit" data-nk-action="edit-custom">編輯符號</button><button type="button" id="nk-custom-manage" data-nk-action="remove-custom">刪除符號</button><button type="button" data-nk-action="export">匯出備份</button><button type="button" data-nk-action="import">匯入</button><input id="nk-import-file" type="file" accept="application/json,.json" hidden></div><p id="nk-custom-hint" class="nk-hint"></p><div id="nk-custom-grid" class="nk-symbol-grid"></div>${editRows}</section></div>
+</div>
           <div id="nk-status" role="status" aria-live="polite"></div><button type="button" id="nk-resize-handle" aria-label="調整鍵盤大小" title="拖曳縮放鍵盤；雙擊還原大小；方向鍵也可調整"><span aria-hidden="true">◢</span></button></div>`;
         // A sibling avoids sending custom-symbol form input through note autosave.
         // Its stacking order stays below the later image/table/link dialogs.
         modal.after(panel);
-        // 分類順序：最近 → 常用 → 希臘字母 → 數學／上下標 → 標點／單位。
-        $('nk-groups').append(button('最近',{nkGroup:'recent'}));
+        // 分類順序：最近 → 自訂 → 常用 → 希臘字母 → 物理／化學 → 數學／上下標 → 標點／單位。
+        $('nk-groups').append(button('最近',{nkGroup:'recent'}),button('自訂',{nkGroup:'custom'}));
         for(const [key,value]of Object.entries(symbolGroups))$('nk-groups').append(button(value.name,{nkGroup:key}));
         for(const [name,text,label] of [['backspace','⌫','退格'],['delete','Del','刪除下一字'],['space','空白','空白'],['enter','↵','換行／注音選字'],['left','←','游標往左'],['right','→','游標往右'],['undo','↶','復原'],['redo','↷','重做']]){commands[name]=button(text,{nkAction:name},label);commands[name].className='nk-command';}
         phoneticRows.forEach((values,i)=>{const row=document.createElement('div');row.className='nk-key-row nk-letter-row';values.forEach((c,j)=>{const key=button(c,{nkPhonetic:c},'注音 '+c);const hint=document.createElement('small');hint.textContent=phoneticHints[i][j];key.append(hint);row.append(key);});$('nk-phonetic-grid').append(row);});
@@ -9722,7 +9736,7 @@ const noteFloatingKeyboard=(()=>{
         document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.isComposing&&shown&&!panel.hidden&&available()){event.preventDefault();event.stopPropagation();hide();restoreTarget();}},true);
         const firstPull=()=>setTimeout(()=>void recentSync.pull(),3000);
         if(window.noteDriveStartupComplete)firstPull();else window.addEventListener('note-drive-state',function once(event){if(event.detail?.loaded){removeEventListener('note-drive-state',once);firstPull();}});
-        window.addEventListener('storage',event=>{if(event.key===storageKey){readPreferences();if(!sizing){applySize(preferences.width);scheduleClamp();}if(mode==='custom')renderCustom();if(mode==='symbols'&&group==='recent')renderSymbols();}});
+        window.addEventListener('storage',event=>{if(event.key===storageKey){readPreferences();if(!sizing){applySize(preferences.width);scheduleClamp();}if(mode==='symbols'&&group==='custom')renderCustom();if(mode==='symbols'&&group==='recent')renderSymbols();}});
         render();
     }
     return {initialize};
