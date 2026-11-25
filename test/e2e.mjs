@@ -677,6 +677,10 @@ try {
         await page.click('#note-keyboard-toggle');
         await page.waitForSelector('#nk-groups button');
         const tabs = await page.$$eval('#nk-groups button', b => b.map(x => x.textContent.trim()));
+        await page.click('#nk-groups [data-nk-group="math"]');
+        const fits = await page.evaluate(() => {const g = document.getElementById('nk-symbol-grid'), p = document.getElementById('note-floating-keyboard'), b = p.querySelector('.nk-body'); return {grid: g.scrollHeight <= g.clientHeight + 1, body: b.scrollHeight <= b.clientHeight + 1, edit: !!document.querySelector('#nk-symbols .nk-edit-row, #nk-symbols [data-nk-action="space"]'), n: g.children.length};});
+        await page.screenshot({path: '/tmp/keyboard.png'});
+        check(fits.grid && fits.body && !fits.edit && fits.n > 50, 'symbols all visible without scrolling; no 退格／空白 rows in the symbols view: ' + JSON.stringify(fits));
         await page.click('#nk-groups [data-nk-group="common"]');
         await page.click('#nk-symbol-grid [data-nk-text="※"]');
         await page.click('#nk-symbol-grid [data-nk-text="★"]');
@@ -697,8 +701,8 @@ try {
         await other.page.click('#nk-groups [data-nk-group="recent"]');
         const otherRecent = await other.page.$$eval('#nk-symbol-grid [data-nk-text]', b => b.map(x => x.dataset.nkText).slice(0, 2));
         await other.context.close();
-        check(tabs[0] === '常用' && tabs[1] === '最近' && shared?.slice(0, 2).join('') === '★※' && otherRecent.join('') === '★※',
-            '最近 is the second tab; recent symbols are shared between devices: ' + JSON.stringify({tabs, shared, otherRecent}));
+        check(tabs[0] === '最近' && tabs[1] === '常用' && shared?.slice(0, 2).join('') === '★※' && otherRecent.join('') === '★※',
+            '最近 is the first tab; recent symbols are shared between devices: ' + JSON.stringify({tabs, shared, otherRecent}));
     }
     // Sign-in renewal: with < 10 minutes left, the next button click renews it.
     {

@@ -175,6 +175,7 @@ const noteFloatingKeyboard=(()=>{
         const renderKey=group+(group==='recent'?JSON.stringify(preferences.recent):'');if(lastSymbolKey===renderKey)return;lastSymbolKey=renderKey;
         const grid=$('nk-symbol-grid');grid.replaceChildren();
         const values=group==='recent'?preferences.recent:symbolGroups[group].values;
+        if(group==='recent'&&!values.length){const hint=document.createElement('p');hint.className='nk-empty';hint.textContent='還沒有用過的符號；用過的會出現在這裡（手機和電腦共用）。';grid.append(hint);}
         for(const text of values)grid.append(button(text,{nkText:text},greekLabels[text]?text+' '+greekLabels[text]:'輸入 '+text));
         if(!values.length){const hint=document.createElement('p');hint.className='nk-hint';hint.textContent='點過的符號會出現在這裡。';grid.append(hint);}
         panel.querySelectorAll('[data-nk-group]').forEach(node=>node.setAttribute('aria-pressed',String(node.dataset.nkGroup===group)));
@@ -200,9 +201,10 @@ const noteFloatingKeyboard=(()=>{
             ['backspace','delete','enter'].forEach((name,i)=>mount(rows[i],[name]));
             mount(grid.querySelector('.nk-space-row'),['undo','redo','space','left','right']);
         }else{
-            const section=$('nk-'+mode);
-            mount(section.querySelector('.nk-edit-row'),['backspace','delete','space','enter']);
-            mount(section.querySelector('.nk-nav-row'),['undo','left','right','redo']);
+            // 符號與自訂：不放退格、空白等按鍵（幾乎用不到），讓符號一次全部顯示。
+            const section=$('nk-'+mode),edit=section?.querySelector('.nk-edit-row'),nav=section?.querySelector('.nk-nav-row');
+            if(edit)mount(edit,['backspace','delete','space','enter']);
+            if(nav)mount(nav,['undo','left','right','redo']);
         }
     }
     async function loadDictionary(){
@@ -331,12 +333,12 @@ const noteFloatingKeyboard=(()=>{
     }
     function initialize(){
         if(initialized)return;initialized=true;modal=$('noteModal');editor=$('modal-text');title=$('note-title-input');
-        let hash=2166136261;for(const c of String(noteDriveBoot.workspace||noteDriveBoot.appUrl||'pharmacy-notes'))hash=Math.imul(hash^c.charCodeAt(0),16777619);storageKey='pharmacy-note-keyboard-v1-'+(hash>>>0).toString(36);readPreferences();panelWidth=preferences.width;
+        let hash=2166136261;for(const c of String(noteDriveBoot.workspace||noteDriveBoot.appUrl||'pharmacy-notes'))hash=Math.imul(hash^c.charCodeAt(0),16777619);storageKey='pharmacy-note-keyboard-v1-'+(hash>>>0).toString(36);readPreferences();group=preferences.recent.length?'recent':'common';panelWidth=preferences.width;
         panel=document.createElement('section');panel.id='note-floating-keyboard';panel.hidden=true;panel.setAttribute('role','region');panel.setAttribute('aria-label','浮動文字鍵盤');
         const editRows='<div class="nk-command-rows"><div class="nk-key-row nk-edit-row"></div><div class="nk-key-row nk-nav-row"></div></div>';
         panel.setAttribute('aria-description','右鍵關閉；按住左鍵拖曳移動；右下角縮放。');
         panel.innerHTML=`<div class="nk-content"><nav class="nk-tabs" aria-label="鍵盤類型" title="按住左鍵拖曳移動；右鍵關閉；右下角縮放">${[['symbols','符號'],['english','英文／數字'],['zhuyin','注音'],['custom','自訂']].map(([id,label])=>`<button type="button" data-nk-mode="${id}" aria-pressed="false">${label}</button>`).join('')}</nav>
-          <div class="nk-body"><section id="nk-symbols"><nav id="nk-groups" aria-label="符號分類"></nav><div id="nk-symbol-grid" class="nk-symbol-grid"></div>${editRows}</section>
+          <div class="nk-body"><section id="nk-symbols"><nav id="nk-groups" aria-label="符號分類"></nav><div id="nk-symbol-grid" class="nk-symbol-grid"></div></section>
           <section id="nk-english" hidden><div id="nk-english-grid"></div></section>
           <section id="nk-zhuyin" hidden><div class="nk-composition-row"><output id="nk-composition" aria-label="注音組字"></output><button type="button" data-nk-action="clear-phonetic">清除</button><button type="button" data-nk-action="literal-phonetic" title="直接輸入注音符號">注音原字</button><span class="nk-candidate-controls"><button type="button" id="nk-candidate-prev" data-nk-action="candidate-prev" aria-label="上一頁候選字" title="上一頁候選字">‹</button><span id="nk-candidate-page"></span><button type="button" id="nk-candidate-next" data-nk-action="candidate-next" aria-label="下一頁候選字" title="下一頁候選字">›</button></span></div><div id="nk-candidates" class="nk-candidates" role="group"></div><div id="nk-phonetic-grid"></div></section>
           <section id="nk-custom" hidden><div class="nk-custom-form"><label>符號／短語<input id="nk-custom-value" type="text" maxlength="128" placeholder="貼上想保存的符號" autocomplete="off"></label><label>名稱（選填）<input id="nk-custom-label" type="text" maxlength="30" placeholder="方便辨識的名稱" autocomplete="off"></label><button type="button" id="nk-custom-save" data-nk-action="save-custom">加入</button></div><div class="nk-custom-tools"><button type="button" id="nk-custom-edit" data-nk-action="edit-custom">編輯符號</button><button type="button" id="nk-custom-manage" data-nk-action="remove-custom">刪除符號</button><button type="button" data-nk-action="export">匯出備份</button><button type="button" data-nk-action="import">匯入</button><input id="nk-import-file" type="file" accept="application/json,.json" hidden></div><p id="nk-custom-hint" class="nk-hint"></p><div id="nk-custom-grid" class="nk-symbol-grid"></div>${editRows}</section></div>
@@ -344,8 +346,9 @@ const noteFloatingKeyboard=(()=>{
         // A sibling avoids sending custom-symbol form input through note autosave.
         // Its stacking order stays below the later image/table/link dialogs.
         modal.after(panel);
-        // 分類順序：常用 → 最近 → 其他。
-        for(const [key,value]of Object.entries(symbolGroups)){$('nk-groups').append(button(value.name,{nkGroup:key}));if(key==='common')$('nk-groups').append(button('最近',{nkGroup:'recent'}));}
+        // 分類順序：最近 → 常用 → 希臘字母 → 數學／上下標 → 標點／單位。
+        $('nk-groups').append(button('最近',{nkGroup:'recent'}));
+        for(const [key,value]of Object.entries(symbolGroups))$('nk-groups').append(button(value.name,{nkGroup:key}));
         for(const [name,text,label] of [['backspace','⌫','退格'],['delete','Del','刪除下一字'],['space','空白','空白'],['enter','↵','換行／注音選字'],['left','←','游標往左'],['right','→','游標往右'],['undo','↶','復原'],['redo','↷','重做']]){commands[name]=button(text,{nkAction:name},label);commands[name].className='nk-command';}
         phoneticRows.forEach((values,i)=>{const row=document.createElement('div');row.className='nk-key-row nk-letter-row';values.forEach((c,j)=>{const key=button(c,{nkPhonetic:c},'注音 '+c);const hint=document.createElement('small');hint.textContent=phoneticHints[i][j];key.append(hint);row.append(key);});$('nk-phonetic-grid').append(row);});
         const tone=button('一聲',{nkPhonetic:'ˉ'},'注音一聲（ˉ）');tone.className='nk-command';$('nk-phonetic-grid').lastChild.prepend(tone);

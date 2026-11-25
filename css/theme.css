@@ -502,3 +502,8 @@ body .category-manager-row {grid-template-columns: 130px minmax(130px, 1fr) auto
 #noteModal .editor-history-button {font-size: 18px; font-weight: 700; line-height: 1; color: #334155;}
 #noteModal .editor-history-button:disabled {opacity: .35; cursor: default;}
 #noteModal .editor-history-divider {align-self: stretch; width: 1px; margin: 4px 2px; background: #e2e8f0;}
+
+/* 浮動鍵盤：符號一次全部顯示（不再需要上下捲動），沒有退格／空白那兩排 */
+#note-floating-keyboard #nk-symbol-grid {max-height: none; overflow: visible;}
+#note-floating-keyboard #nk-symbols {padding-bottom: 6px;}
+#note-floating-keyboard .nk-empty {grid-column: 1 / -1; margin: 6px 2px; color: #78716c; font-size: 12px;}
