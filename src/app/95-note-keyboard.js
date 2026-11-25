@@ -128,7 +128,49 @@ const noteFloatingKeyboard=(()=>{
         for(const [key,value] of Object.entries(attributes))node.dataset[key]=value;
         if(label){node.title=label;node.setAttribute('aria-label',label);}return node;
     }
-    function insertSymbol(text){if(typeText(text)){preferences.recent=[text,...preferences.recent.filter(x=>x!==text)].slice(0,16);savePreferences();}}
+    function insertSymbol(text){if(typeText(text)){preferences.recent=[text,...preferences.recent.filter(x=>x!==text)].slice(0,16);savePreferences();recentSync.used(text);}}
+    /* 「最近」用過的符號：存一份在自己的 Google 雲端硬碟（nd-keyboard-recent.json），手機和電腦都一樣。
+       每個符號記下最後使用的時間，合併時照時間排，取最新的 16 個，所以兩台裝置交替用也不會亂。 */
+    const recentSync=(()=>{
+        const FILE='nd-keyboard-recent.json',KEY='nd-keyboard-recent-at',LIMIT=16;let timer=0,fetchedAt=0,job=null;
+        const readTimes=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(_){return {};}};
+        const writeTimes=times=>{try{localStorage.setItem(KEY,JSON.stringify(times));}catch(_){}};
+        function localItems(){
+            const times=readTimes(),n=preferences.recent.length;
+            // Symbols used before this version have no time: keep their order, older than anything timed.
+            return preferences.recent.map((text,i)=>({text,at:Number(times[text])||(n-i)}));
+        }
+        function merge(...lists){
+            const best=new Map();
+            for(const item of lists.flat()){const text=safeText(item?.text),at=Number(item?.at)||0;if(text&&(!best.has(text)||best.get(text)<at))best.set(text,at);}
+            return [...best].map(([text,at])=>({text,at})).sort((a,b)=>b.at-a.at).slice(0,LIMIT);
+        }
+        function apply(items){
+            const list=items.map(item=>item.text);
+            if(JSON.stringify(list)!==JSON.stringify(preferences.recent)){preferences.recent=list;savePreferences();if(panel&&mode==='symbols'&&group==='recent')renderSymbols();}
+            writeTimes(Object.fromEntries(items.map(item=>[item.text,item.at])));
+        }
+        async function pull(){
+            if(job)return job;
+            job=(async()=>{
+                try{
+                    const remote=await noteDriveServer.rootJsonRead(FILE);fetchedAt=Date.now();
+                    const merged=merge(Array.isArray(remote?.items)?remote.items:[],localItems());
+                    apply(merged);
+                    if(JSON.stringify(merged)!==JSON.stringify(merge(remote?.items||[])))push();
+                }catch(_){}finally{job=null;}
+            })();
+            return job;
+        }
+        function push(){
+            clearTimeout(timer);
+            timer=setTimeout(()=>{void noteDriveServer.rootJsonUpdate(FILE,current=>({items:merge(Array.isArray(current?.items)?current.items:[],localItems()),updatedAt:new Date().toISOString()})).then(value=>{fetchedAt=Date.now();if(value?.items)apply(value.items);}).catch(()=>{});},1500);
+        }
+        function used(text){const times=readTimes();times[text]=Date.now();writeTimes(times);push();}
+        // When the keyboard opens, pick up symbols used on another device (at most once a minute).
+        function refresh(){if(Date.now()-fetchedAt>60000)void pull();}
+        return {pull,used,refresh};
+    })();
     function renderSymbols(){
         const renderKey=group+(group==='recent'?JSON.stringify(preferences.recent):'');if(lastSymbolKey===renderKey)return;lastSymbolKey=renderKey;
         const grid=$('nk-symbol-grid');grid.replaceChildren();
@@ -229,6 +271,7 @@ const noteFloatingKeyboard=(()=>{
     function show(event){
         if(!available())return;if(epoch!==noteOpenRequest)resetTarget();captureTarget();
         if(!target){const range=savedEditorRange?.cloneRange()||document.createRange();if(!editor.contains(range.commonAncestorContainer)){range.selectNodeContents(editor);range.collapse(false);}target={kind:'body',range,backward:false};}
+        recentSync.refresh();
         const wasShown=shown;shown=true;panel.hidden=false;trigger.setAttribute('aria-expanded','true');render();
         if(!wasShown){const v=viewportBounds(),r=panel.getBoundingClientRect(),p=preferences.position||{x:event?.clientX??v.x+v.w-r.width-16,y:event?.clientY??v.y+v.h-r.height-16};clampPosition(p.x+(!preferences.position&&event?12:0),p.y+(!preferences.position&&event?12:0));}
     }
@@ -301,7 +344,8 @@ const noteFloatingKeyboard=(()=>{
         // A sibling avoids sending custom-symbol form input through note autosave.
         // Its stacking order stays below the later image/table/link dialogs.
         modal.after(panel);
-        for(const [key,value]of Object.entries(symbolGroups))$('nk-groups').append(button(value.name,{nkGroup:key}));$('nk-groups').append(button('最近',{nkGroup:'recent'}));
+        // 分類順序：常用 → 最近 → 其他。
+        for(const [key,value]of Object.entries(symbolGroups)){$('nk-groups').append(button(value.name,{nkGroup:key}));if(key==='common')$('nk-groups').append(button('最近',{nkGroup:'recent'}));}
         for(const [name,text,label] of [['backspace','⌫','退格'],['delete','Del','刪除下一字'],['space','空白','空白'],['enter','↵','換行／注音選字'],['left','←','游標往左'],['right','→','游標往右'],['undo','↶','復原'],['redo','↷','重做']]){commands[name]=button(text,{nkAction:name},label);commands[name].className='nk-command';}
         phoneticRows.forEach((values,i)=>{const row=document.createElement('div');row.className='nk-key-row nk-letter-row';values.forEach((c,j)=>{const key=button(c,{nkPhonetic:c},'注音 '+c);const hint=document.createElement('small');hint.textContent=phoneticHints[i][j];key.append(hint);row.append(key);});$('nk-phonetic-grid').append(row);});
         const tone=button('一聲',{nkPhonetic:'ˉ'},'注音一聲（ˉ）');tone.className='nk-command';$('nk-phonetic-grid').lastChild.prepend(tone);
@@ -343,6 +387,8 @@ const noteFloatingKeyboard=(()=>{
         const viewportChanged=()=>{applySize();scheduleClamp();};window.addEventListener('resize',viewportChanged);window.visualViewport?.addEventListener('resize',viewportChanged);
         new ResizeObserver(scheduleClamp).observe(panel);new MutationObserver(modalChanged).observe(modal,{attributes:true,attributeFilter:['class','inert']});
         document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.isComposing&&shown&&!panel.hidden&&available()){event.preventDefault();event.stopPropagation();hide();restoreTarget();}},true);
+        const firstPull=()=>setTimeout(()=>void recentSync.pull(),3000);
+        if(window.noteDriveStartupComplete)firstPull();else window.addEventListener('note-drive-state',function once(event){if(event.detail?.loaded){removeEventListener('note-drive-state',once);firstPull();}});
         window.addEventListener('storage',event=>{if(event.key===storageKey){readPreferences();if(!sizing){applySize(preferences.width);scheduleClamp();}if(mode==='custom')renderCustom();if(mode==='symbols'&&group==='recent')renderSymbols();}});
         render();
     }

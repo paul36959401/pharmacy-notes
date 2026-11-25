@@ -431,7 +431,7 @@ const noteDriveServer = (() => {
     /* ---------- small JSON files in the root folder (AI settings, AI sticky notes) ----------
        Kept apart from the notes themselves, so they never slow down note saving. */
     const rootFileIds = new Map();
-    const ROOT_JSON = /^nd-(ai-settings|ai-notes-[a-z]+|editor-colors)\.json$/;
+    const ROOT_JSON = /^nd-(ai-settings|ai-notes-[a-z]+|editor-colors|keyboard-recent)\.json$/;
     async function rootJsonFile(name, create) {
         if (!ROOT_JSON.test(name)) throw fail('檔名不正確。', 'REQUEST', false);
         if (rootFileIds.has(name)) return rootFileIds.get(name);

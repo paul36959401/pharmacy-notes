@@ -668,6 +668,38 @@ try {
         check(saved.includes('Omeprazole') && !saved.includes('PASTED'), 'the undone content is what gets saved');
         await page.evaluate(t => {notesData.find(x => x.id === 'n1').text = t; autoSave(100);}, original);
     }
+    // Floating keyboard: 最近 is the second tab, and recently used symbols are shared between devices.
+    {
+        const original = await page.evaluate(() => notesData.find(x => x.id === 'n1').text);
+        await page.evaluate(() => openEditModal('n1'));
+        await page.waitForSelector('#noteModal.active #modal-text');
+        await page.click('#modal-text'); await page.keyboard.press('Control+End');
+        await page.click('#note-keyboard-toggle');
+        await page.waitForSelector('#nk-groups button');
+        const tabs = await page.$$eval('#nk-groups button', b => b.map(x => x.textContent.trim()));
+        await page.click('#nk-groups [data-nk-group="common"]');
+        await page.click('#nk-symbol-grid [data-nk-text="※"]');
+        await page.click('#nk-symbol-grid [data-nk-text="★"]');
+        await page.waitForTimeout(2500);
+        const file = () => {const f = [...drive.files.values()].find(x => x.name === 'nd-keyboard-recent.json'); return f ? JSON.parse(f.content).items.map(i => i.text) : null;};
+        const shared = file();
+        await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+        await page.evaluate(t => {notesData.find(x => x.id === 'n1').text = t; autoSave(100);}, original);
+        // Another device sees the same 最近 list.
+        const other = await open('keyboard-other');
+        await signInAndWait(other.page);
+        await other.page.waitForFunction(() => noteDriveCloud.state().loaded, null, {timeout: 60000});
+        await other.page.waitForTimeout(4500);
+        await other.page.evaluate(() => openEditModal('n1'));
+        await other.page.waitForSelector('#noteModal.active #modal-text');
+        await other.page.click('#modal-text');
+        await other.page.click('#note-keyboard-toggle');
+        await other.page.click('#nk-groups [data-nk-group="recent"]');
+        const otherRecent = await other.page.$$eval('#nk-symbol-grid [data-nk-text]', b => b.map(x => x.dataset.nkText).slice(0, 2));
+        await other.context.close();
+        check(tabs[0] === '常用' && tabs[1] === '最近' && shared?.slice(0, 2).join('') === '★※' && otherRecent.join('') === '★※',
+            '最近 is the second tab; recent symbols are shared between devices: ' + JSON.stringify({tabs, shared, otherRecent}));
+    }
     // Sign-in renewal: with < 10 minutes left, the next button click renews it.
     {
         const other = await open('renew');
