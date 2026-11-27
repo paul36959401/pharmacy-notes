@@ -4,7 +4,7 @@
  *  - The page itself: network first (so updates arrive at once), the saved copy when offline.
  *  - Files with ?v=<release>: saved copy first (the version number changes on every release).
  */
-const CACHE = 'nd-shell-v1';
+const CACHE = 'nd-shell-v2';
 const SHELL = ['./', 'manifest.webmanifest', 'assets/icons/icon-192.png', 'assets/icons/icon-512.png'];
 
 self.addEventListener('install', event => {
@@ -30,9 +30,10 @@ self.addEventListener('fetch', event => {
     const request = event.request, url = new URL(request.url);
     if (request.method !== 'GET' || url.origin !== self.location.origin) return;
     if (request.mode === 'navigate') {
-        // One saved copy of the page serves every ?book= address.
-        event.respondWith(fromNetwork(request, scopeUrl()).catch(async () =>
-            (await caches.match(scopeUrl())) || new Response('離線中，且這台裝置還沒有存過網站。請連上網路後再開一次。', {status: 503, headers: {'Content-Type': 'text/plain; charset=utf-8'}})));
+        // One saved copy of the notes page serves every ?book= address; 購物紀錄 has its own.
+        const key = /\/shopping\.html$/.test(url.pathname) ? new URL('shopping.html', scopeUrl()).href : scopeUrl();
+        event.respondWith(fromNetwork(request, key).catch(async () =>
+            (await caches.match(key)) || new Response('離線中，且這台裝置還沒有存過這一頁。請連上網路後再開一次。', {status: 503, headers: {'Content-Type': 'text/plain; charset=utf-8'}})));
         return;
     }
     event.respondWith((async () => {

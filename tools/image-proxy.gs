@@ -9,7 +9,11 @@
  *  - 不讀寫你的 Google Drive，也不碰筆記資料；憑證只用來確認身分。
  *  - 只回傳真正的圖片（檢查檔案開頭），最大 16 MB。
  *
+ * 購物紀錄的「一鍵記錄」：送來 {url, token, page: true} 時，url 是商品頁（例如露天的商品頁），
+ * 代理會讀那一頁的 og:image（商品主圖）再把圖片下載回來。只讀公開的商品頁，不帶任何登入資料。
+ *
  * 部署：部署 → 新增部署作業 → 網頁應用程式；執行身分「我」；存取權「所有人」。
+ * 更新程式碼後：部署 → 管理部署作業 → 鉛筆 → 版本選「新版本」→ 部署（網址不變）。
  */
 var NOTE_SITE_CLIENT_ID = '763409300868-6vuidharbkm839vkag59kft4h1a02c6m.apps.googleusercontent.com';
 
@@ -18,7 +22,7 @@ function doPost(e) {
   try {
     var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     checkCaller_(body.token);
-    out = fetchImage_(body.url);
+    out = fetchImage_(body.page === true ? productImageUrl_(body.url) : body.url);
   } catch (err) {
     out = {success: false, code: err.code || 'EXTERNAL_IMAGE', error: String(err.message || err).slice(0, 300), retryable: err.retryable !== false};
   }
@@ -97,6 +101,39 @@ function fetchImage_(value) {
     return {success: true, mime: mime, bytes: bytes.length, key: digest, data: Utilities.base64Encode(bytes)};
   }
   throw fail_('圖片重新導向次數過多。');
+}
+
+/* Product page → the address of its main picture (og:image, twitter:image or JSON-LD image). */
+function productImageUrl_(value) {
+  var url = imageUrl_(value);
+  for (var attempt = 0; attempt < 5; attempt++) {
+    var response = UrlFetchApp.fetch(url, {method: 'get', muteHttpExceptions: true, followRedirects: false,
+      headers: {Accept: 'text/html,application/xhtml+xml', 'Accept-Language': 'zh-TW,zh;q=0.9,ja;q=0.8,en;q=0.7'}});
+    var status = response.getResponseCode(), headers = response.getAllHeaders();
+    var location = String(headers.Location || headers.location || '');
+    if ([301, 302, 303, 307, 308].indexOf(status) >= 0 && location) {
+      url = imageUrl_(location.indexOf('//') === 0 ? 'https:' + location : /^https?:\/\//i.test(location) ? location : url.match(/^https?:\/\/[^/]+/)[0] + (location[0] === '/' ? '' : '/') + location);
+      continue;
+    }
+    if (status !== 200) throw fail_('商品頁暫時無法讀取（HTTP ' + status + '）。', 'EXTERNAL_PAGE_HTTP', status >= 500 || status === 429);
+    var html = response.getContentText().slice(0, 3000000);
+    var patterns = [
+      /<meta[^>]+(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image(?::src)?)["'][^>]*content=["']([^"']+)["']/i,
+      /<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image(?::src)?)["']/i,
+      /<link[^>]+rel=["']image_src["'][^>]*href=["']([^"']+)["']/i,
+      /"image"\s*:\s*\[?\s*"([^"]+)"/i
+    ];
+    for (var i = 0; i < patterns.length; i++) {
+      var m = patterns[i].exec(html);
+      if (!m) continue;
+      var found = m[1].replace(/\\\//g, '/').replace(/&amp;/g, '&');
+      if (found.indexOf('//') === 0) found = 'https:' + found;
+      else if (!/^https?:\/\//i.test(found)) found = url.match(/^https?:\/\/[^/]+/)[0] + (found[0] === '/' ? '' : '/') + found;
+      return found;
+    }
+    throw fail_('這個商品頁找不到商品圖片。', 'EXTERNAL_PAGE_IMAGE', false);
+  }
+  throw fail_('商品頁重新導向次數過多。');
 }
 
 function fail_(message, code, retryable) {

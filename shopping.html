@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f766e">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="藥學筆記">
+<title>購物紀錄｜藥學筆記雲端</title>
+<link rel="stylesheet" href="css/site.css?v=2026-11-27-pages-v29">
+<link rel="stylesheet" href="css/shopping.css?v=2026-11-27-pages-v29">
+</head>
+<body>
+<div id="site-gate" class="site-gate" role="dialog" aria-modal="true" aria-labelledby="site-gate-title">
+  <div class="site-gate-card">
+    <h1 id="site-gate-title">購物紀錄</h1>
+    <p id="site-gate-text">正在準備…</p>
+    <p id="site-gate-pending" class="site-gate-pending" hidden></p>
+    <button id="site-gate-button" type="button" hidden>用 Google 登入</button>
+    <p class="site-gate-note">購物紀錄只存在你自己的 Google Drive，這個網站不會把資料傳到其他地方。</p>
+  </div>
+</div>
+
+<header class="shop-workspace">
+  <label for="shop-book">藥學筆記</label>
+  <select id="shop-book" aria-label="切換科目或購物紀錄"></select>
+  <span id="syncStatus" class="sync-status" role="status">⚪ 初始化中…</span>
+  <button type="button" id="shop-help" class="shop-pill">使用說明</button>
+</header>
+
+<div class="header-container">
+  <h1>📦 購物紀錄</h1>
+  <div class="header-actions">
+    <button type="button" id="bookmarkBtn" class="btn-bookmark" title="在購物網站按一下就能記錄">🔖 一鍵記錄書籤</button>
+    <button type="button" id="sortBtn" class="btn-sort">✨ 自動排序清單</button>
+    <button type="button" id="previewModeBtn" class="btn-preview" aria-pressed="false">👁 預覽模式</button>
+    <button type="button" id="navToAddBtn" class="btn-primary" title="快捷鍵：滑鼠側鍵上鍵">➕ 新增購買紀錄 <span class="button-shortcut">側鍵↑</span></button>
+  </div>
+</div>
+
+<div id="shop-toast" class="shop-toast" role="status" hidden></div>
+
+<div id="listView" class="view-section active">
+  <div class="card filter-card">
+    <div class="filter-heading">
+      <h2>🔍 篩選與搜尋</h2>
+      <button type="button" id="clearFiltersBtn" class="btn-filter-clear">清除</button>
+    </div>
+    <div class="filter-grid">
+      <div class="form-group"><label for="filterMonth">月份</label><input type="month" id="filterMonth"></div>
+      <div class="form-group">
+        <label for="filterDelivery">付款／取貨</label>
+        <select id="filterDelivery">
+          <option value="all">全部</option><option value="補款">補款</option><option value="取貨付款">取貨付款</option><option value="純取貨">純取貨</option><option value="寄到家">寄到家</option><option value="集運倉">集運倉</option><option value="">待選擇</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="filterStatus">收貨狀態</label>
+        <select id="filterStatus">
+          <option value="all">全部</option><option value="active">未收貨</option><option value="completed">已收貨</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <div id="itemList"></div>
+</div>
+
+<div id="formView" class="view-section">
+  <div class="card">
+    <h2 id="formTitle">➕ 新增購買紀錄</h2>
+    <form id="addForm" autocomplete="off">
+      <div class="form-group">
+        <label>📸 商品圖片 (支援多圖貼上)：</label>
+        <div class="image-paste-area">
+          <div class="paste-hint">在這裡按 Ctrl+V 貼上截圖（可一次貼很多張）</div>
+          <div id="imagePreviewContainer"><div class="preview-list" id="imagePreviewList"></div></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="itemUrl">購買連結：</label>
+        <input type="url" id="itemUrl" inputmode="url">
+      </div>
+      <div class="form-group">
+        <label for="itemName">東西名稱：</label>
+        <input type="text" id="itemName" required>
+      </div>
+      <div class="form-group">
+        <label>預計到貨月份：</label>
+        <div class="month-entry-row">
+          <div class="month-entry-part"><label for="itemYear">年份</label><input type="text" id="itemYear" inputmode="numeric" maxlength="4" spellcheck="false"></div>
+          <div class="month-entry-part"><label for="itemMonthNumber">月份</label><input type="text" id="itemMonthNumber" inputmode="numeric" maxlength="2" spellcheck="false"></div>
+        </div>
+        <input type="hidden" id="itemMonth">
+      </div>
+      <div class="form-group">
+        <label for="itemDelivery">取貨付款方式：</label>
+        <div class="delivery-shortcuts"><kbd>1</kbd> 補款　 <kbd>2</kbd> 取貨付款　 <kbd>3</kbd> 純取貨　 <kbd>4</kbd> 寄到家　 <kbd>5</kbd> 集運倉</div>
+        <select id="itemDelivery">
+          <option value="" disabled>— 請選擇 —</option>
+          <option value="補款">1｜🔴 補款</option><option value="取貨付款" selected>2｜🔴 取貨付款</option><option value="純取貨">3｜🟢 純取貨</option><option value="寄到家">4｜🟢 寄到家</option><option value="集運倉">5｜🟢 集運倉</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="itemAddress">📍 門市 / 地址：</label>
+        <input type="text" id="itemAddress">
+      </div>
+      <div class="form-group">
+        <label for="itemPrice">金額：</label>
+        <div class="price-row">
+          <input type="text" id="itemPrice" inputmode="decimal" spellcheck="false">
+          <select id="itemCurrency" aria-label="幣別"><option value="TWD">台幣</option><option value="JPY">日幣</option><option value="CNY">人民幣</option></select>
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label for="itemPaymentDate">補款日期：</label>
+          <input type="date" id="itemPaymentDate">
+        </div>
+        <div class="form-group">
+          <label for="itemBalance">尾款金額（和上面同幣別）：</label>
+          <input type="text" id="itemBalance" inputmode="decimal" spellcheck="false">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="itemNote">備註：</label>
+        <textarea id="itemNote" rows="3" placeholder="例如：什麼時候領貨、賣家說的事…（Ctrl+Enter 儲存）"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" id="submitBtn" class="btn-primary">儲存資料</button>
+        <button type="button" id="cancelFormBtn" class="btn-secondary">🔙 取消</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="imageEditorModal" class="image-editor-modal" aria-hidden="true">
+  <div class="image-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="imageEditorTitle">
+    <div class="image-editor-header">
+      <h3 id="imageEditorTitle">調整圖片顯示位置</h3>
+      <button type="button" id="editorCloseBtn" class="btn-modal-close" aria-label="關閉">×</button>
+    </div>
+    <div id="imageEditorFrame" class="image-editor-frame" title="按住並拖曳圖片">
+      <img id="imageEditorImage" alt="待調整的商品圖片">
+      <div class="editor-crosshair"></div>
+    </div>
+    <div class="zoom-row">
+      <button type="button" id="zoomOutBtn" aria-label="縮小">−</button>
+      <input type="range" id="imageZoomRange" min="0.35" max="3" step="0.01" value="1" aria-label="圖片縮放比例">
+      <button type="button" id="zoomInBtn" aria-label="放大">＋</button>
+      <span id="imageZoomValue" class="zoom-value">100%</span>
+    </div>
+    <div class="image-editor-actions">
+      <button type="button" id="editorResetBtn" class="btn-editor-reset">↺ 恢復置中</button>
+      <div class="editor-actions-right">
+        <button type="button" id="editorCancelBtn" class="btn-editor-cancel">取消</button>
+        <button type="button" id="editorApplyBtn" class="btn-editor-apply">套用調整</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="imageViewerModal" class="image-viewer-modal" aria-hidden="true">
+  <button type="button" id="viewerCloseBtn" class="image-viewer-close" aria-label="關閉圖片">×</button>
+  <div id="imageViewerLoading" class="image-viewer-loading" hidden>載入高清原圖中…</div>
+  <img id="imageViewerImage" class="image-viewer-image" alt="原始高清商品圖片">
+</div>
+
+<div id="bookmarkDialog" class="shop-dialog" role="dialog" aria-modal="true" aria-labelledby="bookmarkTitle">
+  <div class="shop-dialog-card">
+    <div class="shop-dialog-head"><h3 id="bookmarkTitle">🔖 一鍵記錄書籤</h3><button type="button" class="btn-modal-close" data-close-dialog aria-label="關閉">×</button></div>
+    <p>在購物網站的<b>訂單頁、歷史訂單或商品頁</b>按一下這個書籤，就會把商品記錄到這裡：名稱、金額、圖片和網址會自動填好。<b>就算讀不出商品，也一定會把網址存下來</b>，之後再自己補。</p>
+    <ol class="bookmark-steps">
+      <li>按 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> 讓瀏覽器顯示「書籤列」（網址列下面那一排）。</li>
+      <li>用滑鼠<b>按住</b>下面的綠色按鈕，拖到書籤列上再放開。</li>
+      <li>完成！之後在購物網站按一下書籤列上的「🛍 記錄購物」。</li>
+    </ol>
+    <p class="bookmark-drag"><a id="bookmarkLink" class="bookmark-link" draggable="true">🛍 記錄購物</a></p>
+    <p id="bookmarkError" class="bookmark-error"></p>
+    <details class="bookmark-more">
+      <summary>手機或拖不過去怎麼辦？</summary>
+      <p>按「複製書籤網址」，在瀏覽器新增一個書籤，名稱打「記錄購物」，網址貼上剛剛複製的內容。手機 Chrome 要用時，在網址列打「記錄購物」再點那個書籤。</p>
+      <button type="button" id="bookmarkCopy" class="shop-pill">複製書籤網址</button>
+    </details>
+  </div>
+</div>
+
+<div id="helpDialog" class="shop-dialog" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+  <div class="shop-dialog-card">
+    <div class="shop-dialog-head"><h3 id="helpTitle">購物紀錄使用說明</h3><button type="button" class="btn-modal-close" data-close-dialog aria-label="關閉">×</button></div>
+    <p id="helpVersion" class="help-version"></p>
+    <div id="helpBody">正在讀取…</div>
+  </div>
+</div>
+
+<script src="js/config.js?v=2026-11-27-pages-v29"></script>
+<script src="js/auth.js?v=2026-11-27-pages-v29"></script>
+<script src="js/shopping.js?v=2026-11-27-pages-v29"></script>
+</body>
+</html>

@@ -2,6 +2,8 @@
 function initializeDriveWorkspace(){
     const boot=noteDriveBoot,select=document.getElementById('drive-book');
     for(const book of boot.books){const option=document.createElement('option');option.value=book.id;option.textContent=book.title;select.append(option);}
+    // 購物紀錄 lives in the same site (shopping.html), so it is in the same menu.
+    {const option=document.createElement('option');option.value='__shopping';option.textContent='🛍 購物紀錄';select.append(option);}
     select.value=boot.book;document.title=boot.title+'｜藥學筆記雲端工作台';
     const message=document.getElementById('drive-message'),migrate=document.getElementById('drive-migrate'),convert=document.getElementById('drive-convert'),importButton=document.getElementById('drive-import'),cancel=document.getElementById('drive-cancel');
     let active=null,resultText='';
@@ -60,7 +62,7 @@ function initializeDriveWorkspace(){
         await notePersistence.flush();
         if(notePersistence.hasPendingCloud()){message.textContent='這個科目仍有待同步內容，請先完成同步再切換。';select.value=boot.book;select.disabled=false;return;}
         // A normal web page can switch subjects directly (no Apps Script frame any more).
-        location.href=boot.appUrl+'?book='+encodeURIComponent(next);
+        location.href=next==='__shopping'?new URL('shopping.html',boot.appUrl).href:boot.appUrl+'?book='+encodeURIComponent(next);
     };
     document.getElementById('drive-quota').onclick=async()=>{
         const button=document.getElementById('drive-quota');button.disabled=true;
