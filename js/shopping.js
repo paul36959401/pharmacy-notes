@@ -8,7 +8,8 @@
  * 藥學筆記雲端工作台／購物紀錄備份 (the newest 8 copies are kept).
  * Fields the old site did not have: note (備註), paymentDate (補款日期), balance (尾款金額),
  * currency ('JPY' / 'CNY'; empty = 台幣). Unknown fields are always kept as they are.
- * The 一鍵記錄 bookmark (js/shopping-grab.js) sends products here after "#grab=".
+ * The 購物紀錄小幫手 browser extension (extension/) saves straight to the same Drive file and
+ * tells an open 購物紀錄 page to reload (event 'nd-shopping-saved').
  */
 (() => {
     'use strict';
@@ -19,7 +20,6 @@
     const WORKSPACE_NAME = '藥學筆記雲端工作台';
     const BACKUP_FOLDER_NAME = '購物紀錄備份';
     const BACKUP_KEEP = 8;
-    const GRAB_VERSION = 1;
     const API = 'https://www.googleapis.com/drive/v3';
     const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
     const FOLDER = 'application/vnd.google-apps.folder';
@@ -27,7 +27,6 @@
     const DELIVERY_ORDER = {'補款': 1, '取貨付款': 2, '純取貨': 3, '寄到家': 4, '集運倉': 5};
     const DELIVERY_CLASS = {'補款': 'bg-balance', '取貨付款': 'bg-pickup-pay', '純取貨': 'bg-pickup-only', '寄到家': 'bg-home', '集運倉': 'bg-warehouse'};
     const CURRENCY_LABEL = {JPY: '日幣', CNY: '人民幣'};
-    const IMPORT_KEY = 'nd-shop-imports';
     const $ = id => document.getElementById(id);
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const defaultImg = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='200' viewBox='0 0 300 200'%3E%3Crect width='100%25' height='100%25' fill='%23f0f2f5'/%3E%3Ctext x='50%25' y='50%25' font-size='40' text-anchor='middle' dominant-baseline='middle' opacity='0.3'%3E📦%3C/text%3E%3C/svg%3E";
@@ -76,7 +75,6 @@
         return new Promise((resolve, reject) => {const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = () => reject(r.error); r.readAsDataURL(blob);});
     }
     async function dataUrlToBlob(dataUrl) {return (await fetch(dataUrl)).blob();}
-    function un64(s) {return Uint8Array.from(atob(s), c => c.charCodeAt(0));}
 
     /* ================= this device's copy (IndexedDB) ================= */
     const local = (() => {
@@ -358,29 +356,6 @@
             // A leftover picture does not affect the records.
         }
     }
-    /* Pictures from shop websites. Browsers usually may not read another site's picture,
-       so the owner's own picture helper (the same one the notes use) downloads it. */
-    async function externalImage(url, page = false) {
-        if (!page && url.startsWith('data:image/')) return dataUrlToBlob(url);
-        if (!page) {
-            try {
-                const response = await fetch(url, {mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer'});
-                if (response.ok) {
-                    const blob = await response.blob();
-                    if (blob.size && blob.type.startsWith('image/')) return blob;
-                }
-            } catch (_) {}
-        }
-        const proxy = config.imageProxyUrl;
-        if (!proxy) throw new Error('圖片代理尚未設定。');
-        const response = await fetch(proxy, {method: 'POST', credentials: 'omit', redirect: 'follow', headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify({url, token: await noteAuth.getToken(), ...(page ? {page: true} : {})})});
-        if (!response.ok) throw new Error('圖片代理回覆 ' + response.status);
-        const value = await response.json();
-        if (!value?.success) throw new Error(value?.error || '圖片讀取失敗。');
-        return new Blob([un64(value.data)], {type: value.mime || 'image/jpeg'});
-    }
-
     /* ================= records ================= */
     /* The stored form of a record: like the old site's compact form, but every field the
        page does not know about is kept as it is. */
@@ -1211,154 +1186,36 @@
     }
     ['mousedown', 'mouseup', 'auxclick'].forEach(name => window.addEventListener(name, sideButton, {capture: true, passive: false}));
 
-    /* ================= 一鍵記錄: products sent by the bookmark ================= */
-    const imageJobs = new Map();
-    function decodeGrab(text) {
-        const b64 = text.replace(/-/g, '+').replace(/_/g, '/');
-        const bin = atob(b64 + '==='.slice((b64.length + 3) % 4));
-        return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))));
-    }
-    function takeGrabFromAddress() {
-        const m = /^#grab=([A-Za-z0-9_-]+)$/.exec(location.hash);
-        if (!m) return;
-        try {
-            const payload = decodeGrab(m[1]);
-            const queue = JSON.parse(localStorage.getItem(IMPORT_KEY) || '[]');
-            queue.push(payload);
-            localStorage.setItem(IMPORT_KEY, JSON.stringify(queue.slice(-20)));
-        } catch (error) {
-            toast('書籤送來的資料讀不出來，請再按一次書籤。');
-        }
-        history.replaceState(history.state, '', location.pathname + location.search);
-    }
-    const safeUrl = value => {
-        try {const u = new URL(String(value || '')); return /^https?:$/.test(u.protocol) ? u.href : '';} catch (_) {return '';}
-    };
-    const text = (value, max = 200) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
-    function siteKey(url) {
-        let host = '';
-        try {host = new URL(url).hostname.replace(/^www\./, '');} catch (_) {return '';}
-        if (/(^|\.)(taobao|tmall)\.com$/.test(host)) return 'taobao';
-        if (/(^|\.)ruten\.com\.tw$/.test(host)) return 'ruten';
-        const parts = host.split('.');
-        return parts.slice(/\.(co|com|ne|or)\.(jp|tw)$/.test(host) ? -3 : -2).join('.');
-    }
-    function comparableUrl(url) {
-        try {
-            const u = new URL(url);
-            const keep = [...u.searchParams].filter(([k]) => !/^(spm|mi_id|scm|pvid|xxc|utm_.*|from|skuId|sku_properties|upStreamPrice|ns|abbucket|ali_.*|_u|pisk|track.*|ref)$/i.test(k)).sort(([a], [b]) => a.localeCompare(b));
-            return u.hostname.replace(/^www\./, '') + u.pathname.replace(/\/$/, '') + '?' + keep.map(([k, v]) => k + '=' + v).join('&');
-        } catch (_) {return String(url || '');}
-    }
-    /* "預購11月", "【八月預購】", "12月発売予定", "出貨年月：預計 2026/11" → year-month. */
-    function guessMonth(name, now = new Date()) {
-        const s = String(name || '').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-        const cn = {一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10, 十一: 11, 十二: 12};
-        const word = '(?:預購|預約|预购|预约|予約|預定|発売|发售|發售|出荷|発送|到貨|預計|预计|出貨)';
-        const num = '(十一|十二|十|[一二三四五六七八九]|1[0-2]|0?[1-9])';
-        let m = new RegExp('(20\\d{2})\\s*[年/.-]\\s*(1[0-2]|0?[1-9])\\s*月?(?:[^0-9]|$)').exec(s);
-        if (m && new RegExp(word + '|補款|补款').test(s)) return m[1] + '-' + String(Number(m[2])).padStart(2, '0');
-        m = new RegExp(word + '[^0-9一二三四五六七八九十]{0,4}' + num + '\\s*月').exec(s) || new RegExp(num + '\\s*月\\s*(?:上旬|中旬|下旬|頃|ごろ)?\\s*' + word).exec(s);
-        if (!m) return '';
-        const month = cn[m[1]] || Number(m[1]);
-        if (!(month >= 1 && month <= 12)) return '';
-        const year = month < now.getMonth() ? now.getFullYear() + 1 : now.getFullYear();
-        return year + '-' + String(month).padStart(2, '0');
-    }
-    function recordFromGrab(grab, payload) {
-        const url = safeUrl(grab.url) || safeUrl(payload.from);
-        const site = siteKey(url || payload.from);
-        const previous = state.items.filter(i => i.url && siteKey(i.url) === site).sort((a, b) => Number(b.id) - Number(a.id))[0];
-        const delivery = DELIVERIES.includes(grab.delivery) ? grab.delivery : (previous && DELIVERIES.includes(previous.delivery) ? previous.delivery : '');
-        const address = text(grab.address, 120) || (previous && previous.delivery === delivery && /取貨/.test(delivery) ? previous.address || '' : '');
-        const month = /^\d{4}-\d{2}$/.test(grab.month || '') ? grab.month : guessMonth(grab.name);
-        const currency = ['JPY', 'CNY'].includes(grab.currency) ? grab.currency : '';
-        const record = {id: newId(), name: text(grab.name) || text(payload.title) || site || '未命名商品', delivery, isCompleted: false};
-        if (month) record.month = month;
-        if (address) record.address = address;
-        if (url) record.url = url;
-        if (amountText(grab.price)) record.price = amountText(grab.price);
-        if (currency && record.price) record.currency = currency;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(grab.paymentDate || '')) record.paymentDate = grab.paymentDate;
-        return record;
-    }
-    async function processImports() {
+    /* ================= 購物紀錄小幫手 (browser extension) ================= */
+    /* The extension saves straight to Drive; when this page is open it is told, so the list
+       reloads at once and the new records light up. */
+    window.addEventListener('nd-shopping-saved', async event => {
         if (!state.ready) return;
-        let queue;
-        try {queue = JSON.parse(localStorage.getItem(IMPORT_KEY) || '[]');} catch (_) {queue = [];}
-        if (!queue.length) return;
-        localStorage.removeItem(IMPORT_KEY);
-        const added = [];
-        let skipped = 0, oldBookmark = false;
-        for (const payload of queue) {
-            if (!payload || typeof payload !== 'object') continue;
-            if (Number(payload.v || 0) < GRAB_VERSION) oldBookmark = true;
-            const grabs = (Array.isArray(payload.items) && payload.items.length ? payload.items : [{}]).slice(0, 30).filter(g => g && typeof g === 'object');
-            for (const grab of grabs) {
-                const record = recordFromGrab(grab, payload);
-                const same = record.url && state.items.find(i => i.url && comparableUrl(i.url) === comparableUrl(record.url) && (!grab.name || text(i.name) === record.name || !i.name));
-                if (same && !confirm('這筆已經記錄過了：\n' + (same.name || same.url) + '\n\n仍要再新增一筆嗎？')) {skipped++; flashCard(findCard(same.id)); continue;}
-                state.items.push(record);
-                added.push({record, grab});
-            }
-        }
-        if (!added.length) {
-            if (skipped) toast('已經記錄過，沒有新增。');
-            return;
-        }
-        await commit({immediate: true, sort: true});
-        const first = added[0].record;
-        toast('已新增 ' + added.length + ' 筆：' + first.name + (added.length > 1 ? ' 等' : '') + (oldBookmark ? '（書籤有新版本，請到「🔖 一鍵記錄書籤」重新拖曳一次）' : ''));
-        for (const {record, grab} of added) startImageJob(record.id, grab);
-        if (added.length === 1 && !$('formView').classList.contains('active')) {
-            editItem(first.id, {title: '✏️ 補充這筆購買紀錄', focusId: !first.name ? 'itemName' : !first.month ? 'itemYear' : !first.delivery ? 'itemDelivery' : 'itemPrice'});
-        } else {
-            added.forEach(({record}) => flashCard(findCard(record.id)));
-            findCard(first.id)?.scrollIntoView({behavior: 'smooth', block: 'center'});
-        }
+        try {await pull({quiet: true});} catch (_) {}
+        const ids = event.detail?.ids || [];
+        ids.forEach(id => flashCard(findCard(id)));
+        findCard(ids[0])?.scrollIntoView({behavior: 'smooth', block: 'center'});
+        if (ids.length) toast('小幫手剛剛存了 ' + ids.length + ' 筆。');
+    });
+    const helperInstalled = () => document.documentElement.dataset.ndShopHelper || '';
+    let latestHelper = '';
+    async function checkHelper() {
+        try {latestHelper = (await (await fetch('extension/manifest.json?v=' + encodeURIComponent(release))).json()).version || '';} catch (_) {}
+        const installed = helperInstalled();
+        const old = installed && latestHelper && installed !== latestHelper;
+        $('helperDot').hidden = !old;
+        return {installed, old};
     }
-    /* Download the product pictures in the background and add them to the record
-       (and to the open form, when that record is being edited). */
-    function startImageJob(id, grab) {
-        const sources = [];
-        for (const url of [].concat(grab.images || [], grab.image || [])) {
-            const u = String(url || '').startsWith('data:image/') ? String(url) : safeUrl(url);
-            if (u && !sources.some(s => s.url === u)) sources.push({url: u, page: false});
-        }
-        for (const url of [].concat(grab.imagePages || [])) {
-            const u = safeUrl(url);
-            if (u && sources.length < 4) sources.push({url: u, page: true});
-        }
-        if (!sources.length) return;
-        const job = (async () => {
-            const images = [];
-            const name = state.items.find(i => idsEqual(i.id, id))?.name || '商品';
-            for (const [index, source] of sources.slice(0, 4).entries()) {
-                setStatus('syncing', '🖼️ 下載商品圖片 ' + (index + 1) + '/' + Math.min(sources.length, 4) + '…');
-                try {
-                    const blob = await externalImage(source.url, source.page);
-                    const originalSrc = await blobToDataUrl(blob);
-                    const img = normalizeImageData(await compressImage(originalSrc), {}, originalSrc, {name: sanitizeName(name) + '_' + (index + 1) + '.' + (blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg'), type: blob.type || 'image/jpeg'});
-                    await uploadOriginal(img, index + 1, name);
-                    images.push(img);
-                } catch (error) {
-                    console.warn('商品圖片下載失敗：', source.url, error);
-                }
-            }
-            const record = state.items.find(i => idsEqual(i.id, id));
-            if (!images.length || !record) {
-                if (!images.length) setStatus('synced', '🟡 這個網站的商品圖片讀不到，可以自己貼上截圖', true);
-                return;
-            }
-            applyImages(record, [...getItemImages(record), ...images]);
-            if ($('formView').classList.contains('active') && idsEqual(editingId, id)) {
-                currentImages.push(...images.map(img => ({...img})));
-                renderPreview();
-            }
-            await commit({immediate: true});
-        })().finally(() => imageJobs.delete(String(id)));
-        imageJobs.set(String(id), job);
+    async function openHelperDialog() {
+        $('helperDialog').classList.add('open');
+        const {installed, old} = await checkHelper();
+        const box = $('helperState');
+        box.className = 'helper-state ' + (installed ? (old ? 'is-old' : 'is-ok') : 'is-missing');
+        box.textContent = installed
+            ? (old ? '這台電腦裝的是 ' + installed + ' 版，有新版 ' + latestHelper + '：請照「更新」的步驟更新。' : '✓ 這台電腦已經裝好小幫手（' + installed + ' 版）。')
+            : '這台電腦還沒裝小幫手（或瀏覽器還沒重新整理這一頁）。';
     }
+
     let toastTimer = null;
     function toast(message) {
         const el = $('shop-toast');
@@ -1368,23 +1225,7 @@
         toastTimer = setTimeout(() => {el.hidden = true;}, 6000);
     }
 
-    /* ================= bookmark, help, menu ================= */
-    async function openBookmarkDialog() {
-        const dialog = $('bookmarkDialog');
-        dialog.classList.add('open');
-        const link = $('bookmarkLink');
-        try {
-            const response = await fetch('js/shopping-grab.min.js?v=' + encodeURIComponent(release));
-            if (!response.ok) throw new Error('書籤程式讀取失敗（' + response.status + '）');
-            const code = (await response.text()).trim().replace(/;+\s*$/, '');
-            const shop = new URL('shopping.html', location.href).href;
-            link.href = 'javascript:' + encodeURIComponent('void ' + code + '(' + JSON.stringify(shop) + ',false)');
-            link.dataset.ready = '1';
-        } catch (error) {
-            link.removeAttribute('href');
-            $('bookmarkError').textContent = error.message;
-        }
-    }
+    /* ================= help, menu ================= */
     async function openHelp() {
         const dialog = $('helpDialog');
         dialog.classList.add('open');
@@ -1439,20 +1280,10 @@
         $('navToAddBtn').addEventListener('click', startNewPurchase);
         $('cancelFormBtn').addEventListener('click', () => closeFormView());
         $('addForm').addEventListener('submit', submitForm);
-        $('bookmarkBtn').addEventListener('click', () => void openBookmarkDialog());
+        $('helperBtn').addEventListener('click', () => void openHelperDialog());
         $('shop-help').addEventListener('click', () => void openHelp());
         document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => button.closest('.shop-dialog').classList.remove('open')));
         document.querySelectorAll('.shop-dialog').forEach(dialog => dialog.addEventListener('click', event => {if (event.target === dialog) dialog.classList.remove('open');}));
-        $('bookmarkLink').addEventListener('click', event => {
-            event.preventDefault();
-            alert('請用滑鼠「按住」這個按鈕，把它拖到上方的書籤列放開。\n之後在購物網站的訂單頁或商品頁按一下書籤就會記錄。');
-        });
-        $('bookmarkCopy').addEventListener('click', async () => {
-            const href = $('bookmarkLink').href;
-            if (!$('bookmarkLink').dataset.ready) return;
-            try {await navigator.clipboard.writeText(href); $('bookmarkCopy').textContent = '已複製';} catch (_) {prompt('請複製下面的文字：', href);}
-            setTimeout(() => {$('bookmarkCopy').textContent = '複製書籤網址';}, 2000);
-        });
 
         digitsOnly($('itemYear'), {maxLength: 4});
         digitsOnly($('itemMonthNumber'), {maxLength: 2});
@@ -1591,7 +1422,6 @@
                 if (file) void addPastedImage(file);
             }
         });
-        window.addEventListener('hashchange', () => {takeGrabFromAddress(); void processImports();});
     }
 
     /* ================= start-up ================= */
@@ -1600,12 +1430,6 @@
         gateText.textContent = message;
         gateButton.hidden = !button;
         if (button) gateButton.textContent = button;
-    }
-    function pendingNote() {
-        let n = 0;
-        try {n = JSON.parse(localStorage.getItem(IMPORT_KEY) || '[]').length;} catch (_) {}
-        $('site-gate-pending').hidden = !n;
-        $('site-gate-pending').textContent = n ? '有 ' + n + ' 筆一鍵記錄的商品，登入後會自動加入。' : '';
     }
     async function start() {
         say('正在讀取你 Google Drive 裡的購物紀錄…');
@@ -1620,8 +1444,8 @@
         gate.hidden = true;
         state.ready = true;
         render();
-        await processImports();
         if (state.dirty) schedulePush(true);
+        setTimeout(() => void checkHelper(), 1500);
     }
     async function offlineStart() {
         if (!await loadLocal()) {say('目前沒有網路，而且這台裝置還沒有存過購物紀錄。請連上網路後再開一次。'); return;}
@@ -1656,9 +1480,7 @@
     setupMenu();
     wire();
     resetFormState();
-    takeGrabFromAddress();
-    pendingNote();
-    window.noteShopping = {state, merge, compactItem, guessMonth, serialize, processImports, decodeGrab};   // for the tests
+    window.noteShopping = {state, merge, compactItem, serialize};   // for the tests
     if (!config.clientId) {say('網站還沒設定 Google 登入（config.js 的 clientId 是空的）。'); return;}
     if (navigator.onLine === false) {void offlineStart(); return;}
     noteAuth.loadLibrary().catch(error => say(error.message));

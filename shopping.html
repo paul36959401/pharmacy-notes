@@ -12,15 +12,14 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="藥學筆記">
 <title>購物紀錄｜藥學筆記雲端</title>
-<link rel="stylesheet" href="css/site.css?v=2026-11-27-pages-v30">
-<link rel="stylesheet" href="css/shopping.css?v=2026-11-27-pages-v30">
+<link rel="stylesheet" href="css/site.css?v=2026-11-27-pages-v31">
+<link rel="stylesheet" href="css/shopping.css?v=2026-11-27-pages-v31">
 </head>
 <body>
 <div id="site-gate" class="site-gate" role="dialog" aria-modal="true" aria-labelledby="site-gate-title">
   <div class="site-gate-card">
     <h1 id="site-gate-title">購物紀錄</h1>
     <p id="site-gate-text">正在準備…</p>
-    <p id="site-gate-pending" class="site-gate-pending" hidden></p>
     <button id="site-gate-button" type="button" hidden>用 Google 登入</button>
     <p class="site-gate-note">購物紀錄只存在你自己的 Google Drive，這個網站不會把資料傳到其他地方。</p>
   </div>
@@ -39,7 +38,7 @@
     <input type="search" id="searchInput" placeholder="搜尋商品名稱、門市或備註…" aria-label="搜尋商品名稱、門市、網址或備註" autocomplete="off" spellcheck="false">
   </div>
   <div class="shop-toolbar" role="group" aria-label="購物紀錄功能">
-    <button type="button" id="bookmarkBtn" class="shop-tool" data-tool-short="書籤" data-tool-label="一鍵記錄書籤" data-tool-detail="在購物網站按一下就能記錄" aria-label="一鍵記錄書籤"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 3.5h12v17l-6-4-6 4v-17Z"/><path d="M12 7.5v5M9.5 10h5"/></svg></button>
+    <button type="button" id="helperBtn" class="shop-tool" data-tool-short="小幫手" data-tool-label="購物紀錄小幫手" data-tool-detail="瀏覽器擴充功能：在購物網站按一下就存好" aria-label="購物紀錄小幫手（擴充功能）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4.5a2 2 0 1 1 4 0V6h4a1 1 0 0 1 1 1v4h-1.5a2 2 0 1 0 0 4H18v4a1 1 0 0 1-1 1h-4v-1.5a2 2 0 1 0-4 0V20H5a1 1 0 0 1-1-1v-4h1.5a2 2 0 1 0 0-4H4V7a1 1 0 0 1 1-1h4V4.5Z"/></svg><span id="helperDot" class="helper-dot" hidden></span></button>
     <button type="button" id="sortBtn" class="shop-tool" data-tool-short="排序" data-tool-label="自動排序清單" data-tool-detail="依到貨月份和付款方式排好" aria-label="自動排序清單"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 16l4 4 4-4M7 20V4M13 5h8M13 10h6M13 15h3"/></svg></button>
     <button type="button" id="previewModeBtn" class="shop-tool" data-tool-short="預覽" data-tool-label="預覽模式" data-tool-detail="只看不改，隱藏卡片上的操作" aria-label="預覽模式" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
     <button type="button" id="navToAddBtn" class="shop-tool" data-tool-short="新增" data-tool-label="新增購買紀錄" data-tool-detail="快捷鍵：滑鼠側鍵上鍵" aria-label="新增購買紀錄"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -168,21 +167,25 @@
   <img id="imageViewerImage" class="image-viewer-image" alt="原始高清商品圖片">
 </div>
 
-<div id="bookmarkDialog" class="shop-dialog" role="dialog" aria-modal="true" aria-labelledby="bookmarkTitle">
+<div id="helperDialog" class="shop-dialog" role="dialog" aria-modal="true" aria-labelledby="helperTitle">
   <div class="shop-dialog-card">
-    <div class="shop-dialog-head"><h3 id="bookmarkTitle">🔖 一鍵記錄書籤</h3><button type="button" class="btn-modal-close" data-close-dialog aria-label="關閉">×</button></div>
-    <p>在購物網站的<b>訂單頁、歷史訂單或商品頁</b>按一下這個書籤，就會把商品記錄到這裡：名稱、金額、圖片和網址會自動填好。<b>就算讀不出商品，也一定會把網址存下來</b>，之後再自己補。</p>
-    <ol class="bookmark-steps">
-      <li>按 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> 讓瀏覽器顯示「書籤列」（網址列下面那一排）。</li>
-      <li>用滑鼠<b>按住</b>下面的綠色按鈕，拖到書籤列上再放開。</li>
-      <li>完成！之後在購物網站按一下書籤列上的「🛍 記錄購物」。</li>
+    <div class="shop-dialog-head"><h3 id="helperTitle">🛍 購物紀錄小幫手（瀏覽器擴充功能）</h3><button type="button" class="btn-modal-close" data-close-dialog aria-label="關閉">×</button></div>
+    <p id="helperState" class="helper-state">正在檢查這台電腦…</p>
+    <p>裝好之後，在<b>商品頁、訂單頁或注文履歴頁</b>按瀏覽器右上角的 🛍 按鈕（或 <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>），商品名稱、金額、圖片和網址就會<b>直接存進購物紀錄</b>，不用打開這個網站。一頁有很多樣商品時會跳出小視窗讓你勾選；就算讀不出商品，也一定會存下網址。</p>
+    <h4>第一次安裝（每台電腦做一次，Chrome 或 Edge 都可以）</h4>
+    <ol class="helper-steps">
+      <li>按 <a id="helperDownload" class="helper-download" href="assets/shopping-helper.zip" download="購物紀錄小幫手.zip">⬇ 下載小幫手</a>，會下載「購物紀錄小幫手.zip」。</li>
+      <li>打開「下載」資料夾，在 zip 檔上按右鍵 →「解壓縮全部」→ 位置建議改成「文件」→ 解壓縮。<b>之後不要刪掉這個資料夾。</b></li>
+      <li>在網址列輸入 <code>chrome://extensions</code>（Edge 是 <code>edge://extensions</code>）按 Enter，打開右上角（Edge 在左下）的「開發人員模式」。</li>
+      <li>按「載入未封裝項目」，選剛剛解壓縮出來的「購物紀錄小幫手」資料夾。</li>
+      <li>按網址列右邊的拼圖圖示，在「購物紀錄小幫手」旁按圖釘，讓 🛍 按鈕一直顯示。</li>
+      <li>會自動打開小幫手的設定頁：按「登入 Google」，選存放筆記的帳號並允許。</li>
     </ol>
-    <p class="bookmark-drag"><a id="bookmarkLink" class="bookmark-link" draggable="true">🛍 記錄購物</a></p>
-    <p id="bookmarkError" class="bookmark-error"></p>
-    <details class="bookmark-more">
-      <summary>手機或拖不過去怎麼辦？</summary>
-      <p>按「複製書籤網址」，在瀏覽器新增一個書籤，名稱打「記錄購物」，網址貼上剛剛複製的內容。手機 Chrome 要用時，在網址列打「記錄購物」再點那個書籤。</p>
-      <button type="button" id="bookmarkCopy" class="shop-pill">複製書籤網址</button>
+    <details class="helper-more">
+      <summary>更新、其他電腦和手機</summary>
+      <p><b>有新版本時</b>：這裡會提醒你。下載新的 zip，解壓縮到原本的位置覆蓋，再到 <code>chrome://extensions</code> 在小幫手上按重新整理圖示。</p>
+      <p><b>其他電腦</b>：每台電腦照上面做一次就好，設定都一樣。</p>
+      <p><b>手機</b>：手機瀏覽器不能裝擴充功能，請用「＋ 新增」或貼上截圖。</p>
     </details>
   </div>
 </div>
@@ -195,8 +198,8 @@
   </div>
 </div>
 
-<script src="js/config.js?v=2026-11-27-pages-v30"></script>
-<script src="js/auth.js?v=2026-11-27-pages-v30"></script>
-<script src="js/shopping.js?v=2026-11-27-pages-v30"></script>
+<script src="js/config.js?v=2026-11-27-pages-v31"></script>
+<script src="js/auth.js?v=2026-11-27-pages-v31"></script>
+<script src="js/shopping.js?v=2026-11-27-pages-v31"></script>
 </body>
 </html>

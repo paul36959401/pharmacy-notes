@@ -10,7 +10,7 @@
 |---|---|
 | `index.html` | 網頁本體（筆記） |
 | `shopping.html`、`js/shopping.js`、`css/shopping.css` | 購物紀錄（選單裡的「🛍 購物紀錄」） |
-| `js/shopping-grab.js` | 「一鍵記錄」書籤的程式（`js/shopping-grab.min.js` 由它產生） |
+| `extension/` | 「購物紀錄小幫手」瀏覽器擴充功能（`assets/shopping-helper.zip` 是打包好的下載檔） |
 | `js/config.js` | 唯一可能需要手動改的設定（Google 登入用戶端 ID、科目清單） |
 | `js/auth.js` | Google 登入 |
 | `js/drive-server.js` | 直接連 Google Drive（取代舊的 Apps Script 後端） |

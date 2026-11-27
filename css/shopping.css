@@ -1,7 +1,5 @@
 /* 購物紀錄 page. Same look as the old 購物紀錄網站, with the notes site's top bar. */
 body { font-family: 'Segoe UI', "Microsoft JhengHei", "PingFang TC", Tahoma, Geneva, Verdana, sans-serif; max-width: 95%; margin: 0 auto; padding: 20px; background-color: #f3f6f5; }
-.site-gate-pending { margin: 4px 0 10px; padding: 8px 10px; border-radius: 10px; background: #f0fdfa; color: #0f766e; font-weight: 700; }
-.site-gate-pending[hidden] { display: none; }
 
 /* ---------- top: same look as the notes page ---------- */
 .shop-workspace, .shop-topbar, .shop-filters { font-family: "Helvetica Neue", Helvetica, Arial, "PingFang TC", "微軟正黑體", sans-serif; }
@@ -25,7 +23,6 @@ body { font-family: 'Segoe UI', "Microsoft JhengHei", "PingFang TC", Tahoma, Gen
 .shop-tool:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; z-index: 1; }
 .shop-tool:active { background: var(--tool-tint); box-shadow: inset 0 1px 3px #0f172a18; }
 .shop-tool.preview-active { background: var(--tool-tint); border-color: var(--tool-color); box-shadow: inset 0 0 0 1px var(--tool-color); }
-#bookmarkBtn { --tool-color: #117b70; --tool-tint: #e4f4ef; }
 #sortBtn { --tool-color: #9860cc; --tool-tint: #f2eafc; }
 #previewModeBtn { --tool-color: #1689b8; --tool-tint: #e6f5fc; }
 #navToAddBtn { --tool-color: #209b59; --tool-tint: #e3f7ea; }
@@ -41,7 +38,7 @@ body { font-family: 'Segoe UI', "Microsoft JhengHei", "PingFang TC", Tahoma, Gen
 @media (hover: hover) and (min-width: 651px) {
     .shop-tool[data-tool-label]:hover::after { content: attr(data-tool-label) "\A" attr(data-tool-detail); white-space: pre; position: absolute; top: calc(100% + 8px); right: -4px; z-index: 120; width: max-content; max-width: 260px; padding: 8px 12px; border: 1px solid #344155; border-radius: 9px; background: #263245; color: #fff; box-shadow: 0 5px 16px #0f172a20; font-size: 12px; line-height: 1.55; text-align: left; pointer-events: none; }
 }
-body.preview-mode :is(#bookmarkBtn, #sortBtn, #navToAddBtn) { opacity: .35; pointer-events: none; }
+body.preview-mode :is(#helperBtn, #sortBtn, #navToAddBtn) { opacity: .35; pointer-events: none; }
 body.form-open :is(.shop-topbar, .shop-filters) { display: none; }
 body.form-open .shop-workspace { margin-bottom: 12px; }
 
@@ -199,21 +196,30 @@ body.right-drag-active, body.right-drag-active * { cursor: grabbing !important; 
 .btn-delete { background-color: transparent; color: #666; font-weight: 900; font-size: 13px; padding: 2px; }
 .btn-delete:hover { color: #f44336; text-decoration: underline; }
 
-/* message after the bookmark sent something */
+/* short message at the bottom */
 .shop-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 10030; max-width: min(640px, calc(100vw - 32px)); padding: 11px 16px; border-radius: 12px; background: #134e4a; color: #fff; box-shadow: 0 10px 28px rgba(0,0,0,.25); font-size: 14px; line-height: 1.5; }
 .shop-toast[hidden] { display: none; }
 
-/* dialogs: bookmark and help */
+/* dialogs: 小幫手 and help */
 .shop-dialog { position: fixed; inset: 0; z-index: 10010; display: none; align-items: center; justify-content: center; padding: 18px; background: rgba(20, 28, 36, .55); }
 .shop-dialog.open { display: flex; }
 .shop-dialog-card { width: min(560px, 96vw); max-height: 92vh; overflow-y: auto; box-sizing: border-box; padding: 18px 20px; border-radius: 16px; background: #fff; color: #2c3a40; box-shadow: 0 20px 60px rgba(0,0,0,.28); line-height: 1.7; font-size: 14.5px; }
 .shop-dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .shop-dialog-head h3 { margin: 0; color: #0f766e; font-size: 19px; }
-.bookmark-steps { padding-left: 22px; }
-.bookmark-drag { text-align: center; margin: 14px 0; }
-.bookmark-link { display: inline-block; padding: 10px 22px; border-radius: 999px; background: #0f766e; color: #fff; font-weight: 800; font-size: 16px; text-decoration: none; cursor: grab; box-shadow: 0 4px 14px rgba(15,118,110,.3); }
-.bookmark-error { color: #c62828; margin: 0; }
-.bookmark-more summary { cursor: pointer; color: #526b73; }
+.shop-dialog-card h4 { margin: 14px 0 4px; color: #164b3d; font-size: 15px; }
+.shop-dialog-card code { padding: 1px 6px; border-radius: 6px; background: #f3f6f5; color: #164b3d; font-size: 13px; }
+.helper-state { padding: 10px 12px; border-radius: 12px; font-weight: 700; }
+.helper-state.is-ok { background: #ecfdf5; color: #047857; }
+.helper-state.is-old { background: #fffbeb; color: #92400e; }
+.helper-state.is-missing { background: #f1f5f9; color: #475569; }
+.helper-steps { padding-left: 22px; }
+.helper-steps li { margin-bottom: 4px; }
+.helper-download { display: inline-block; padding: 3px 12px; border-radius: 999px; background: #0f766e; color: #fff; font-weight: 800; text-decoration: none; }
+.helper-download:hover { background: #115e59; }
+.helper-more summary { cursor: pointer; color: #526b73; }
+.helper-dot { position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: #e11d48; }
+.helper-dot[hidden] { display: none; }
+#helperBtn { --tool-color: #117b70; --tool-tint: #e4f4ef; }
 .help-version { margin: 4px 0 8px; color: #658078; font-size: 13px; }
 .help-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .help-table th, .help-table td { padding: 7px 8px; border-bottom: 1px solid #edf2f0; text-align: left; vertical-align: top; }

@@ -1,17 +1,11 @@
-/* 一鍵記錄 bookmark. This file is turned into the bookmark by tools/build.mjs
- * (js/shopping-grab.min.js) and the 購物紀錄 page wraps it as
- *   javascript:void (function (SHOP, DRY) {...})("<購物紀錄網址>", false)
- *
- * It runs on the shop's own page when the bookmark is clicked, reads the products shown
- * there and opens the 購物紀錄 page with them. Whatever happens, at least the page address
- * and title are sent, so the click is never wasted. The data travels only in the address
- * after "#", which stays in the browser (it is not sent to GitHub or anywhere else).
- * DRY = true returns what was found instead of sending it (used by the tests).
- * Bump V together with GRAB_VERSION in js/shopping.js when this file changes.
+/* 購物紀錄小幫手 — page reader. The extension injects this file into the shop page when its
+ * button is clicked. It reads the products shown on the page, lets you tick them when there
+ * are several, and shows a small message on the page. Saving is done by background.js.
+ * Defines globalThis.__ndShopGrab = {collect, panel, toast}.
  */
-(function (SHOP, DRY) {
+(function () {
     'use strict';
-    var V = 1;
+    var V = 2;
     var host = location.hostname.replace(/^www\./, '');
     var lang = String(document.documentElement.lang || '').toLowerCase();
 
@@ -286,29 +280,6 @@
         }).filter(function (it) {return it.name.length >= 2;}).slice(0, 30);
     }
 
-    /* ---------- sending ---------- */
-    function payload(items, merged) {
-        return {v: V, from: location.href, title: clean(document.title), site: host, merged: !!merged,
-            items: items.map(function (it) {
-                var o = {};
-                ['name', 'price', 'currency', 'url', 'delivery', 'address', 'month', 'paymentDate'].forEach(function (k) {if (it[k]) o[k] = clean(it[k], k === 'url' ? 2000 : 300);});
-                var images = [].concat(it.images || []).filter(Boolean).slice(0, 4);
-                if (images.length) o.images = images;
-                if (it.imagePages && it.imagePages.length) o.imagePages = it.imagePages.slice(0, 4);
-                return o;
-            })};
-    }
-    function send(items, merged) {
-        var data = payload(items, merged);
-        if (DRY) return data;
-        var json = JSON.stringify(data);
-        var b64 = btoa(unescape(encodeURIComponent(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-        var url = SHOP + '#grab=' + b64;
-        var w = null;
-        try {w = window.open(url, 'nd-shopping');} catch (e) {}
-        if (!w) location.href = url;
-        return data;
-    }
     function combine(items) {
         var total = pickPrice(clean(document.body.innerText, 30000), true);
         var images = [];
@@ -344,8 +315,8 @@
         catch (e) {var style = document.createElement('style'); style.textContent = css; root.appendChild(style);}
         function el(tag, cls, text) {var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e;}
         var box = el('div', 'box'), head = el('div', 'head'), list = el('div', 'list'), foot = el('div', 'foot');
-        var title = el('div', '', '🛍 記錄購物');
-        title.appendChild(el('small', '', '　找到 ' + items.length + ' 個商品，勾選要記錄的'));
+        var title = el('div', '', '🛍 存到購物紀錄');
+        title.appendChild(el('small', '', '　找到 ' + items.length + ' 個商品，勾選要存的'));
         var close = el('button', 'x', '×');
         head.appendChild(title); head.appendChild(close);
         var firstGroup = items[0].group;
@@ -366,10 +337,10 @@
         var mergeLabel = el('label', 'merge'), merge = el('input');
         merge.type = 'checkbox';
         mergeLabel.appendChild(merge); mergeLabel.appendChild(document.createTextNode('合併成一筆'));
-        var onlyUrl = el('button', '', '只記網址'), go = el('button', 'go', '');
+        var onlyUrl = el('button', '', '只存網址'), go = el('button', 'go', '');
         function count() {
             var n = boxes.filter(function (b) {return b.checked;}).length;
-            go.textContent = n ? (merge.checked && n > 1 ? '記錄成 1 筆' : '記錄 ' + n + ' 筆') : '只記網址';
+            go.textContent = n ? (merge.checked && n > 1 ? '存成 1 筆' : '存 ' + n + ' 筆') : '只存網址';
         }
         boxes.forEach(function (b) {b.addEventListener('change', count);});
         merge.addEventListener('change', count);
@@ -384,6 +355,7 @@
             done();
             send(merge.checked && chosen.length > 1 ? combine(chosen) : chosen, merge.checked && chosen.length > 1);
         });
+        close.addEventListener('click', function () {toast('info', '沒有存任何東西。');});
         foot.appendChild(mergeLabel); foot.appendChild(onlyUrl); foot.appendChild(go);
         box.appendChild(head); box.appendChild(list); box.appendChild(foot);
         root.appendChild(box);
@@ -391,12 +363,63 @@
         setTimeout(function () {try {go.focus();} catch (e) {}}, 30);
     }
 
-    /* ---------- main ---------- */
-    if (SHOP && location.href.indexOf(SHOP.split('#')[0]) === 0) {alert('這個書籤要在購物網站的訂單頁或商品頁按喔！'); return;}
-    var items = null;
-    try {items = ruten() || taobao() || product() || generic();} catch (e) {items = null;}
-    if (DRY) return payload(items || []);
-    if (!items || !items.length) return void send([], false);
-    if (items.length === 1) return void send(items, false);
-    try {panel(items);} catch (e) {send([], false);}
-})
+    /* ---------- result for the extension ---------- */
+    function payload(items, merged) {
+        return {v: V, from: location.href, title: clean(document.title), site: host, merged: !!merged,
+            items: items.map(function (it) {
+                var o = {};
+                ['name', 'price', 'currency', 'url', 'delivery', 'address', 'month', 'paymentDate'].forEach(function (k) {if (it[k]) o[k] = clean(it[k], k === 'url' ? 2000 : 300);});
+                var images = [].concat(it.images || []).filter(Boolean).slice(0, 4);
+                if (images.length) o.images = images;
+                if (it.imagePages && it.imagePages.length) o.imagePages = it.imagePages.slice(0, 4);
+                if (it.group != null) o.group = it.group;
+                return o;
+            })};
+    }
+    function collect() {
+        var items = null;
+        try {items = ruten() || taobao() || product() || generic();} catch (e) {items = null;}
+        return payload(items || []);
+    }
+    function send(items, merged) {
+        var data = payload(items, merged);
+        toast('busy', '正在存到購物紀錄…');
+        try {chrome.runtime.sendMessage({type: 'nd-save', payload: data});}
+        catch (e) {toast('error', '擴充功能剛剛更新過，請重新整理這一頁再按一次。');}
+    }
+
+    /* ---------- message on the page ---------- */
+    var toastTimer = null;
+    function toast(state, text, link) {
+        var old = document.getElementById('nd-shop-toast');
+        if (old) old.remove();
+        clearTimeout(toastTimer);
+        var hostEl = document.createElement('div');
+        hostEl.id = 'nd-shop-toast';
+        hostEl.style.all = 'initial';
+        hostEl.style.position = 'fixed'; hostEl.style.top = '16px'; hostEl.style.right = '16px'; hostEl.style.zIndex = '2147483647';
+        var root = hostEl.attachShadow ? hostEl.attachShadow({mode: 'closed'}) : hostEl;
+        var colors = {busy: ['#fff7e6', '#b45309', '#f6d7a7'], ok: ['#ecfdf5', '#047857', '#a7e3c9'], info: ['#f1f5f9', '#475569', '#d5dde6'], warn: ['#fffbeb', '#92400e', '#f3d58c'], error: ['#fef2f2', '#b91c1c', '#f3b4b4']}[state] || ['#f1f5f9', '#475569', '#d5dde6'];
+        var css = '*{box-sizing:border-box;font-family:"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif}' +
+            '.t{max-width:min(380px,calc(100vw - 32px));padding:12px 14px;border-radius:12px;border:1px solid ' + colors[2] + ';background:' + colors[0] + ';color:' + colors[1] + ';box-shadow:0 10px 30px rgba(0,0,0,.18);font-size:14px;line-height:1.55;display:flex;gap:10px;align-items:flex-start}' +
+            '.i{font-size:16px;line-height:1.35}.m{flex:1;white-space:pre-line;word-break:break-word}a{color:inherit;font-weight:700}button{all:unset;cursor:pointer;font-size:18px;line-height:1;padding:0 2px;opacity:.6}';
+        try {var sheet = new CSSStyleSheet(); sheet.replaceSync(css); root.adoptedStyleSheets = [sheet];}
+        catch (e) {var style = document.createElement('style'); style.textContent = css; root.appendChild(style);}
+        var box = document.createElement('div'); box.className = 't';
+        var icon = document.createElement('div'); icon.className = 'i'; icon.textContent = {busy: '⏳', ok: '✓', warn: '⚠', error: '✗', info: 'ℹ'}[state] || 'ℹ';
+        var msg = document.createElement('div'); msg.className = 'm'; msg.textContent = text;
+        if (link) {
+            msg.appendChild(document.createTextNode('\n'));
+            var a = document.createElement('a'); a.href = link; a.target = '_blank'; a.rel = 'noopener'; a.textContent = '打開購物紀錄 →';
+            msg.appendChild(a);
+        }
+        var x = document.createElement('button'); x.textContent = '×'; x.setAttribute('aria-label', '關閉');
+        x.addEventListener('click', function () {hostEl.remove();});
+        box.appendChild(icon); box.appendChild(msg); box.appendChild(x);
+        root.appendChild(box);
+        document.documentElement.appendChild(hostEl);
+        if (state !== 'busy') toastTimer = setTimeout(function () {hostEl.remove();}, state === 'ok' || state === 'info' ? 7000 : 15000);
+    }
+
+    globalThis.__ndShopGrab = {collect: collect, panel: panel, toast: toast};
+})();

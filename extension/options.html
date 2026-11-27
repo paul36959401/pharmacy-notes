@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>購物紀錄小幫手</title>
+<style>
+  body {margin: 0; padding: 28px 18px; background: #f3f6f5; color: #263c35; font: 15px/1.75 "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;}
+  main {max-width: 640px; margin: 0 auto;}
+  .card {background: #fff; border: 1px solid #dce6e1; border-radius: 18px; padding: 18px 22px; margin-bottom: 14px; box-shadow: 0 3px 16px #24493a05;}
+  h1 {margin: 0 0 4px; font-size: 22px; color: #164b3d;}
+  h2 {margin: 0 0 8px; font-size: 16px; color: #164b3d;}
+  .muted {color: #658078; font-size: 13px;}
+  .status {padding: 10px 12px; border-radius: 12px; background: #f0fdfa; color: #0f766e; font-weight: 700;}
+  .status.off {background: #fff7e6; color: #92400e;}
+  button {font: inherit; padding: 7px 16px; border-radius: 999px; border: 1px solid #99f6e4; background: #f0fdfa; color: #0f766e; font-weight: 700; cursor: pointer; margin: 8px 8px 0 0;}
+  button.main {background: #0f766e; border-color: #0f766e; color: #fff;}
+  kbd {display: inline-block; padding: 0 6px; border: 1px solid #c8d0d7; border-bottom-width: 2px; border-radius: 5px; background: #fff; font: 700 12px/1.6 inherit;}
+  ol, ul {padding-left: 22px; margin: 6px 0;}
+  a {color: #0f766e; font-weight: 700;}
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1>🛍 購物紀錄小幫手</h1>
+    <div class="muted" id="version"></div>
+  </div>
+  <div class="card">
+    <h2>Google 帳號</h2>
+    <div id="status" class="status off">讀取中…</div>
+    <button type="button" id="signin" class="main">登入 Google</button>
+    <button type="button" id="switch">換一個帳號</button>
+    <button type="button" id="retry" hidden>立刻補存</button>
+    <p class="muted">請選存放「藥學筆記雲端」的那個 Google 帳號。小幫手只會把購物紀錄存進你自己的 Google Drive，不會傳到其他地方。</p>
+  </div>
+  <div class="card">
+    <h2>怎麼用</h2>
+    <ol>
+      <li>在商品頁、訂單頁或注文履歴頁，按瀏覽器右上角的 🛍 按鈕（或鍵盤 <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>）。</li>
+      <li>只有一樣商品時，會直接存好；有很多樣時會跳出小視窗讓你勾選。</li>
+      <li>右上角會出現「已存到購物紀錄」。要補付款方式、門市等，打開購物紀錄在卡片上按兩下。</li>
+    </ol>
+    <ul class="muted">
+      <li>看不到 🛍 按鈕：按網址列右邊的拼圖圖示，在「購物紀錄小幫手」旁按圖釘。</li>
+      <li>就算讀不出商品，也一定會把網址和標題存成一筆。</li>
+      <li>沒有網路時會先存在這台電腦，之後自動補存。</li>
+    </ul>
+    <p><a href="https://paul36959401.github.io/pharmacy-notes/shopping.html" target="_blank">打開購物紀錄 →</a></p>
+  </div>
+</main>
+<script src="options.js"></script>
+</body>
+</html>

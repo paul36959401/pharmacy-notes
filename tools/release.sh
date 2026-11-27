@@ -11,7 +11,7 @@ if ! grep -q "\"version\": \"v$((n+1))\"" assets/manual.json; then
 fi
 sed -i -E "s/[0-9]{4}-[0-9]{2}-[0-9]{2}-$old/$day-$new/g" index.html shopping.html js/config.js
 node tools/build.mjs >/dev/null
-cp -r .gitignore CLAUDE.md README.md index.html shopping.html manifest.webmanifest sw.js js css assets src tools test /home/claude/pharmacy-notes/
+cp -r .gitignore CLAUDE.md README.md index.html shopping.html manifest.webmanifest sw.js js css assets extension src tools test /home/claude/pharmacy-notes/
 rm -f /home/claude/pharmacy-notes/test/.seed.json
 cd /home/claude/pharmacy-notes && git add -A && git commit -q -m "$1
 

@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "購物紀錄小幫手",
+  "short_name": "購物紀錄",
+  "version": "1.0.0",
+  "description": "在購物網站按一下，就把商品名稱、金額、圖片和網址存進你自己 Google Drive 裡的「藥學筆記雲端」購物紀錄。",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsV0PwHhCHlK41/8Z1vCWJdlUEAEgQzXRHdW5NzS0fzz3TtCTqJKq1DEaplVw/f0WEUwtbtt/Cqh2AOC8TSRmG7fgrQEnOlN/2hTmpb9CJcX92XewIjIvhTMj7wKFrRG1no0uB/P+4kqreo3vJX5f/z2uDgU/02kgfyd6KcSw8jj3PvKzjTJUfue1ALbPgybMX8ICrs0Y1JChMhzb7wjREOaYWSWQ8N4RMXAEcM9wiXlLvr3oxeLvPLMy/IcuHm+cR2MNKIKc/JxioA3S3e7WnFIei1xKwkJx7kQ7N5X5Tdbt/CDd3lTYez58fggwhO/zqQlJ35srCIfSatXxviYWhwIDAQAB",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "存到購物紀錄（Alt+Shift+S）",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "identity",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "options_page": "options.html",
+  "commands": {
+    "record": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "把這一頁存到購物紀錄"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://paul36959401.github.io/pharmacy-notes/*"
+      ],
+      "js": [
+        "page-marker.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}
