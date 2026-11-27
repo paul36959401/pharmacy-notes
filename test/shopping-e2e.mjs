@@ -136,6 +136,11 @@ try {
     check('month groups and archive', await page.locator('.month-header').count() === 4, await page.locator('.month-header').allTextContents().then(t => t.join(' | ')));
     check('pinned group for records without month', (await page.locator('.month-header').first().textContent()).includes('特別關注'));
     check('hidden picture stays off the card', await page.locator('.item-card[data-item-id="1774117886334"] .gallery-frame').count() === 1);
+    await page.fill('#searchInput', '澤田');
+    await page.waitForTimeout(250);
+    check('search finds by name and shows 清除篩選', await page.locator('.item-card').count() === 1 && await page.isVisible('#clearFiltersBtn'));
+    await page.click('#clearFiltersBtn');
+    check('清除篩選 shows everything again', await page.locator('.item-card').count() === 4 && !(await page.isVisible('#clearFiltersBtn')));
     check('price shown with thousands separator', (await page.locator('.item-card[data-item-id="1781455310160"] .item-meta').first().textContent()).includes('$4,320'));
     const roundTrip = await page.evaluate(() => {
         const {state, compactItem} = window.noteShopping;

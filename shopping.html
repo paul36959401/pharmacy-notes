@@ -12,8 +12,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="藥學筆記">
 <title>購物紀錄｜藥學筆記雲端</title>
-<link rel="stylesheet" href="css/site.css?v=2026-11-27-pages-v29">
-<link rel="stylesheet" href="css/shopping.css?v=2026-11-27-pages-v29">
+<link rel="stylesheet" href="css/site.css?v=2026-11-27-pages-v30">
+<link rel="stylesheet" href="css/shopping.css?v=2026-11-27-pages-v30">
 </head>
 <body>
 <div id="site-gate" class="site-gate" role="dialog" aria-modal="true" aria-labelledby="site-gate-title">
@@ -29,44 +29,42 @@
 <header class="shop-workspace">
   <label for="shop-book">藥學筆記</label>
   <select id="shop-book" aria-label="切換科目或購物紀錄"></select>
-  <span id="syncStatus" class="sync-status" role="status">⚪ 初始化中…</span>
-  <button type="button" id="shop-help" class="shop-pill">使用說明</button>
+  <button type="button" id="shop-help" class="shop-pill" title="版本、功能與快捷鍵、Q&amp;A">使用說明</button>
+  <span class="shop-private">私人 Google Drive</span>
 </header>
 
-<div class="header-container">
-  <h1>📦 購物紀錄</h1>
-  <div class="header-actions">
-    <button type="button" id="bookmarkBtn" class="btn-bookmark" title="在購物網站按一下就能記錄">🔖 一鍵記錄書籤</button>
-    <button type="button" id="sortBtn" class="btn-sort">✨ 自動排序清單</button>
-    <button type="button" id="previewModeBtn" class="btn-preview" aria-pressed="false">👁 預覽模式</button>
-    <button type="button" id="navToAddBtn" class="btn-primary" title="快捷鍵：滑鼠側鍵上鍵">➕ 新增購買紀錄 <span class="button-shortcut">側鍵↑</span></button>
+<div class="shop-topbar">
+  <div class="shop-search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
+    <input type="search" id="searchInput" placeholder="搜尋商品名稱、門市或備註…" aria-label="搜尋商品名稱、門市、網址或備註" autocomplete="off" spellcheck="false">
   </div>
+  <div class="shop-toolbar" role="group" aria-label="購物紀錄功能">
+    <button type="button" id="bookmarkBtn" class="shop-tool" data-tool-short="書籤" data-tool-label="一鍵記錄書籤" data-tool-detail="在購物網站按一下就能記錄" aria-label="一鍵記錄書籤"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 3.5h12v17l-6-4-6 4v-17Z"/><path d="M12 7.5v5M9.5 10h5"/></svg></button>
+    <button type="button" id="sortBtn" class="shop-tool" data-tool-short="排序" data-tool-label="自動排序清單" data-tool-detail="依到貨月份和付款方式排好" aria-label="自動排序清單"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 16l4 4 4-4M7 20V4M13 5h8M13 10h6M13 15h3"/></svg></button>
+    <button type="button" id="previewModeBtn" class="shop-tool" data-tool-short="預覽" data-tool-label="預覽模式" data-tool-detail="只看不改，隱藏卡片上的操作" aria-label="預覽模式" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+    <button type="button" id="navToAddBtn" class="shop-tool" data-tool-short="新增" data-tool-label="新增購買紀錄" data-tool-detail="快捷鍵：滑鼠側鍵上鍵" aria-label="新增購買紀錄"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button type="button" id="syncStatus" class="shop-tool" data-tool-short="同步" data-tool-label="雲端同步" data-tool-detail="初始化中…" data-sync-state="syncing" aria-label="雲端同步"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 18a4.5 4.5 0 0 1-.8-8.9 7 7 0 0 1 13.6 0A4.5 4.5 0 0 1 18 18H6Z"/></svg><span id="syncText" class="sr-only" role="status" aria-live="polite">⚪ 初始化中…</span></button>
+  </div>
+</div>
+
+<div class="shop-filters" role="group" aria-label="篩選">
+  <label class="shop-filter"><span>月份</span><input type="month" id="filterMonth"></label>
+  <label class="shop-filter"><span>付款／取貨</span>
+    <select id="filterDelivery">
+      <option value="all">全部</option><option value="補款">補款</option><option value="取貨付款">取貨付款</option><option value="純取貨">純取貨</option><option value="寄到家">寄到家</option><option value="集運倉">集運倉</option><option value="">待選擇</option>
+    </select>
+  </label>
+  <label class="shop-filter"><span>收貨狀態</span>
+    <select id="filterStatus">
+      <option value="all">全部</option><option value="active">未收貨</option><option value="completed">已收貨</option>
+    </select>
+  </label>
+  <button type="button" id="clearFiltersBtn" class="shop-filter-clear" hidden>× 清除篩選</button>
 </div>
 
 <div id="shop-toast" class="shop-toast" role="status" hidden></div>
 
 <div id="listView" class="view-section active">
-  <div class="card filter-card">
-    <div class="filter-heading">
-      <h2>🔍 篩選與搜尋</h2>
-      <button type="button" id="clearFiltersBtn" class="btn-filter-clear">清除</button>
-    </div>
-    <div class="filter-grid">
-      <div class="form-group"><label for="filterMonth">月份</label><input type="month" id="filterMonth"></div>
-      <div class="form-group">
-        <label for="filterDelivery">付款／取貨</label>
-        <select id="filterDelivery">
-          <option value="all">全部</option><option value="補款">補款</option><option value="取貨付款">取貨付款</option><option value="純取貨">純取貨</option><option value="寄到家">寄到家</option><option value="集運倉">集運倉</option><option value="">待選擇</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="filterStatus">收貨狀態</label>
-        <select id="filterStatus">
-          <option value="all">全部</option><option value="active">未收貨</option><option value="completed">已收貨</option>
-        </select>
-      </div>
-    </div>
-  </div>
   <div id="itemList"></div>
 </div>
 
@@ -197,8 +195,8 @@
   </div>
 </div>
 
-<script src="js/config.js?v=2026-11-27-pages-v29"></script>
-<script src="js/auth.js?v=2026-11-27-pages-v29"></script>
-<script src="js/shopping.js?v=2026-11-27-pages-v29"></script>
+<script src="js/config.js?v=2026-11-27-pages-v30"></script>
+<script src="js/auth.js?v=2026-11-27-pages-v30"></script>
+<script src="js/shopping.js?v=2026-11-27-pages-v30"></script>
 </body>
 </html>

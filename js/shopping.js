@@ -494,10 +494,16 @@
     const state = {items: [], base: [], baseText: '[]', stamp: '', dirty: false, ready: false, loadedFromCloud: false};
     let pushTimer = null, pushing = null, pushQueued = false, pulling = null, lastCheck = 0;
 
-    function setStatus(kind, text) {
+    /* The cloud button shows the state by colour (like the notes); the words are in its
+       hover note, and an error or notice also pops up once at the bottom. */
+    let lastNotice = '';
+    function setStatus(kind, text, notify = kind === 'error') {
         const el = $('syncStatus');
-        el.className = 'sync-status ' + kind;
-        el.textContent = text;
+        el.dataset.syncState = kind === 'synced' ? 'success' : kind;
+        el.dataset.toolDetail = text.replace(/^[^\p{L}\p{N}]+/u, '');
+        $('syncText').textContent = text;
+        if (notify && text !== lastNotice) toast(el.dataset.toolDetail);
+        lastNotice = notify ? text : '';
     }
     async function persistLocal() {
         await local.set('state', {items: state.items, baseText: state.baseText, stamp: state.stamp, dirty: state.dirty, fileId: drive.fileId, savedAt: Date.now()});
@@ -606,13 +612,16 @@
     let previewMode = false;
     function render() {
         const fMonth = $('filterMonth').value, fDeliv = $('filterDelivery').value, fStatus = $('filterStatus').value;
+        const query = $('searchInput').value.trim().toLowerCase();
+        $('clearFiltersBtn').hidden = !(fMonth || fDeliv !== 'all' || fStatus !== 'all' || query);
         const items = state.items.filter(i => (!fMonth || i.month === fMonth)
             && (fDeliv === 'all' || (i.delivery || '') === fDeliv)
-            && (fStatus === 'all' || (fStatus === 'completed' ? i.isCompleted : !i.isCompleted)));
+            && (fStatus === 'all' || (fStatus === 'completed' ? i.isCompleted : !i.isCompleted))
+            && (!query || [i.name, i.address, i.note, i.url].join(' ').toLowerCase().includes(query)));
         const container = $('itemList');
         container.innerHTML = '';
         if (!items.length) {
-            container.innerHTML = '<div class="empty-state">' + (state.loadedFromCloud || state.items.length ? '目前沒有符合條件的紀錄喔！' : '正在讀取購物紀錄…') + '</div>';
+            container.innerHTML = '<div class="empty-state">' + (query ? '找不到「' + escapeHtml(query) + '」的紀錄。' : state.loadedFromCloud || state.items.length ? '目前沒有符合條件的紀錄喔！' : '正在讀取購物紀錄…') + '</div>';
             return;
         }
         const fragment = document.createDocumentFragment();
@@ -712,12 +721,14 @@
         previewMode = typeof force === 'boolean' ? force : !previewMode;
         document.body.classList.toggle('preview-mode', previewMode);
         const button = $('previewModeBtn');
-        button.classList.toggle('is-active', previewMode);
+        button.classList.toggle('preview-active', previewMode);
         button.setAttribute('aria-pressed', String(previewMode));
-        button.textContent = previewMode ? '✕ 退出預覽' : '👁 預覽模式';
+        button.dataset.toolLabel = previewMode ? '退出預覽' : '預覽模式';
+        button.dataset.toolShort = previewMode ? '返回' : '預覽';
+        button.setAttribute('aria-label', button.dataset.toolLabel);
     }
     function clearFilters() {
-        $('filterMonth').value = ''; $('filterDelivery').value = 'all'; $('filterStatus').value = 'all';
+        $('filterMonth').value = ''; $('filterDelivery').value = 'all'; $('filterStatus').value = 'all'; $('searchInput').value = '';
         render();
     }
 
@@ -1336,7 +1347,7 @@
             }
             const record = state.items.find(i => idsEqual(i.id, id));
             if (!images.length || !record) {
-                if (!images.length) setStatus('synced', '🟡 這個網站的商品圖片讀不到，可以自己貼上截圖');
+                if (!images.length) setStatus('synced', '🟡 這個網站的商品圖片讀不到，可以自己貼上截圖', true);
                 return;
             }
             applyImages(record, [...getItemImages(record), ...images]);
@@ -1392,6 +1403,8 @@
         }
     }
     function setupMenu() {
+        const number = (/pages-(v\d+)/.exec(release) || [])[1];
+        if (number) $('shop-help').textContent = number + '・使用說明';
         const select = $('shop-book');
         for (const book of config.books || []) {
             const option = document.createElement('option');
@@ -1414,6 +1427,13 @@
         $('filterDelivery').addEventListener('change', render);
         $('filterStatus').addEventListener('change', render);
         $('clearFiltersBtn').addEventListener('click', clearFilters);
+        let searchTimer = null;
+        $('searchInput').addEventListener('input', () => {clearTimeout(searchTimer); searchTimer = setTimeout(render, 120);});
+        $('searchInput').addEventListener('keydown', event => {if (event.key === 'Escape' && event.currentTarget.value) {event.stopPropagation(); event.currentTarget.value = ''; render();}});
+        $('syncStatus').addEventListener('click', () => {
+            toast($('syncStatus').dataset.toolDetail || '');
+            if (state.ready && !pushing && !pulling) void pull({quiet: true}).catch(() => {});
+        });
         $('sortBtn').addEventListener('click', forceAutoSort);
         $('previewModeBtn').addEventListener('click', () => togglePreviewMode());
         $('navToAddBtn').addEventListener('click', startNewPurchase);
